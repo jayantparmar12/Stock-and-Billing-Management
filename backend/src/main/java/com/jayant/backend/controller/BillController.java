@@ -3,6 +3,7 @@ package com.jayant.backend.controller;
 import com.jayant.backend.DTO.BillRequest;
 import com.jayant.backend.DTO.BillResponse;
 import com.jayant.backend.Entity.Payment;
+import com.jayant.backend.Entity.Refund;
 import com.jayant.backend.services.BillService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -61,5 +62,10 @@ public class BillController {
     @GetMapping("{id}/payments")
     public List<Payment> getPaymentByBill(@PathVariable Integer id) {
         return billService.getPaymentByBill(id);
+    }
+
+    @GetMapping("{id}/refunds")
+    public List<Refund> getRefundHistory(@PathVariable Integer id) {
+        return billService.getRefundHistory(id);
     }
 }

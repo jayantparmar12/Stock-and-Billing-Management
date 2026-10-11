@@ -26,6 +26,7 @@ public class BillService {
     private final ProductRepo productRepo;
     private final BillItemRepo billItemRepo;
     private final PaymentRepo paymentRepo;
+    private final RefundRepo refundRepo;
 
     @Transactional
     public BillResponse createBill(BillRequest request) {
@@ -264,6 +265,17 @@ public class BillService {
             product.setQuantity(product.getQuantity()+billItem.getQuantity());
         }
         bill.setStatus(BillStatus.CANCELLED);
+        if (bill.getPaidAmount() != null &&
+                bill.getPaidAmount().compareTo(BigDecimal.ZERO) > 0) {
+
+            Refund refund = new Refund();
+            refund.setAmount(bill.getPaidAmount());
+            refund.setBill(bill);
+            refund.setRefundDate(LocalDateTime.now());
+
+            refundRepo.save(refund);
+        }
+
         billRepo.save(bill);
     }
 
@@ -321,5 +333,15 @@ public class BillService {
             );
         }
         return paymentRepo.findByBillId(id);
+    }
+
+    public List<Refund> getRefundHistory(Integer id) {
+        if(!billRepo.existsById(id)) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Bill Not Found with id : "+id
+            );
+        }
+        return refundRepo.findByBillId(id);
     }
 }
