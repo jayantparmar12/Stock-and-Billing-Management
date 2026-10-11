@@ -82,6 +82,12 @@ public class ProductService {
             }
             Product product = productRepo.findById(id)
                     .orElseThrow(() -> new RuntimeException("Product Not Found : " + id));
+            if (product.getQuantity() < quantity) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Insufficient stock"
+                );
+            }
             product.setQuantity(product.getQuantity() - quantity);
             return productRepo.save(product);
         }

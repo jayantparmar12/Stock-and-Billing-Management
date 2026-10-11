@@ -1,0 +1,269 @@
+package com.jayant.backend.services;
+
+import com.jayant.backend.DTO.BillItemRequest;
+import com.jayant.backend.DTO.BillItemResponse;
+import com.jayant.backend.DTO.BillRequest;
+import com.jayant.backend.DTO.BillResponse;
+import com.jayant.backend.Entity.*;
+import com.jayant.backend.repository.BillItemRepo;
+import com.jayant.backend.repository.BillRepo;
+import com.jayant.backend.repository.CustomerRepo;
+import com.jayant.backend.repository.ProductRepo;
+import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
+@Service
+@RequiredArgsConstructor
+public class BillService {
+    private final BillRepo billRepo;
+    private final CustomerRepo customerRepo;
+    private final ProductRepo productRepo;
+    private final BillItemRepo billItemRepo;
+
+    @Transactional
+    public BillResponse createBill(BillRequest request) {
+        Customer customer = customerRepo.findById(request.getCustomer_id())
+                .orElseThrow(()-> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Customer Not Found with id : "+request.getCustomer_id()
+                )
+        );
+        if(request.getItems()==null || request.getItems().isEmpty()){
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Empty Products Not Allowed"
+            );
+        }
+        Bill bill = new Bill();
+        bill.setTotalAmount(0.0);
+        bill.setBillDate(LocalDateTime.now());
+        bill.setCustomer(customer);
+        bill = billRepo.save(bill);
+        Double totalPrice = 0.0;
+        List<BillItem> billItems = new ArrayList<>();
+        List<BillItemResponse> billItemResponses = new ArrayList<>();
+        for(BillItemRequest billItemRequest : request.getItems()) {
+            Product product = productRepo.findById(billItemRequest.getProduct_id())
+                    .orElseThrow(()->new ResponseStatusException(
+                            HttpStatus.NOT_FOUND,
+                            "Product Not Found with id : "+billItemRequest.getProduct_id()
+                    ));
+            if(billItemRequest.getQuantity()==null || billItemRequest.getQuantity()<=0){
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Quantity must be greater than 0"
+                );
+            }
+            if(product.getQuantity() < billItemRequest.getQuantity()) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Insufficient stock"
+                );
+            }
+            product.setQuantity(product.getQuantity()-billItemRequest.getQuantity());
+            productRepo.save(product);
+            totalPrice += billItemRequest.getQuantity() * product.getPrice();
+
+            BillItemResponse billItemResponse = new BillItemResponse();
+            billItemResponse.setProductName(product.getProduct());
+            billItemResponse.setQuantity(billItemRequest.getQuantity());
+            billItemResponse.setUnitPrice(product.getPrice());
+            billItemResponse.setItemTotal(billItemRequest.getQuantity() * product.getPrice());
+            billItemResponses.add(billItemResponse);
+
+            BillItem billItem = new BillItem();
+            billItem.setBill(bill);
+            billItem.setProduct(product);
+            billItem.setQuantity(billItemRequest.getQuantity());
+            billItem.setUnitPrice(product.getPrice());
+            billItems.add(billItem);
+        }
+        bill.setTotalAmount(totalPrice);
+        billItemRepo.saveAll(billItems);
+        billRepo.save(bill);
+
+        BillResponse billResponse = new BillResponse();
+        billResponse.setBillDate(bill.getBillDate());
+        billResponse.setCustomer(bill.getCustomer());
+        billResponse.setId(bill.getId());
+        billResponse.setTotalAmount(bill.getTotalAmount());
+        billResponse.setItems(billItemResponses);
+        return billResponse;
+    }
+
+    public BillResponse getBillById(Integer id) {
+        Bill bill = billRepo.findById(id)
+                .orElseThrow(()-> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Bill Not Found with id : "+id
+                ));
+        List<BillItem> billItems = billItemRepo.findByBillId(id);
+        List<BillItemResponse> billItemResponses = new ArrayList<>();
+        for(BillItem billItem : billItems) {
+            BillItemResponse billItemResponse = new BillItemResponse();
+            billItemResponse.setItemTotal(billItem.getUnitPrice()* billItem.getQuantity());
+            billItemResponse.setUnitPrice(billItem.getUnitPrice());
+            billItemResponse.setQuantity(billItem.getQuantity());
+            billItemResponse.setProductName(billItem.getProduct().getProduct());
+            billItemResponses.add(billItemResponse);
+        }
+        BillResponse billResponse = new BillResponse();
+        billResponse.setTotalAmount(bill.getTotalAmount());
+        billResponse.setId(bill.getId());
+        billResponse.setCustomer(bill.getCustomer());
+        billResponse.setBillDate(bill.getBillDate());
+        billResponse.setItems(billItemResponses);
+
+        return billResponse;
+    }
+
+    public List<BillResponse> getAllBills() {
+        List<Bill> bills = billRepo.findAll();
+        List<BillResponse> billResponses = new ArrayList<>();
+
+        for(Bill bill : bills) {
+            List<BillItem> billItems = billItemRepo.findByBillId(bill.getId());
+            List<BillItemResponse> billItemResponses = new ArrayList<>();
+            BillResponse billResponse = new BillResponse();
+            billResponse.setBillDate(bill.getBillDate());
+            billResponse.setCustomer(bill.getCustomer());
+            billResponse.setId(bill.getId());
+            billResponse.setTotalAmount(bill.getTotalAmount());
+            for(BillItem billItem : billItems) {
+                BillItemResponse billItemResponse = new BillItemResponse();
+                billItemResponse.setQuantity(billItem.getQuantity());
+                billItemResponse.setProductName(billItem.getProduct().getProduct());
+                billItemResponse.setUnitPrice(billItem.getUnitPrice());
+                billItemResponse.setItemTotal(billItem.getUnitPrice()*billItem.getQuantity());
+
+                billItemResponses.add(billItemResponse);
+            }
+            billResponse.setItems(billItemResponses);
+            billResponses.add(billResponse);
+        }
+        return billResponses;
+    }
+
+    public List<BillResponse> getBillByCustomerId(Integer id) {
+        if(!customerRepo.existsById(id)) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Customer Not Found with id : "+id
+            );
+        }
+        List<BillResponse> billResponses = new ArrayList<>();
+        List<Bill> bills = billRepo.findByCustomerId(id);
+        for(Bill bill : bills) {
+            List<BillItem> billItems = billItemRepo.findByBillId(bill.getId());
+            List<BillItemResponse> billItemResponses = new ArrayList<>();
+            BillResponse billResponse = new BillResponse();
+            billResponse.setBillDate(bill.getBillDate());
+            billResponse.setCustomer(bill.getCustomer());
+            billResponse.setId(bill.getId());
+            billResponse.setTotalAmount(bill.getTotalAmount());
+            for(BillItem billItem : billItems) {
+                BillItemResponse billItemResponse = new BillItemResponse();
+                billItemResponse.setQuantity(billItem.getQuantity());
+                billItemResponse.setProductName(billItem.getProduct().getProduct());
+                billItemResponse.setUnitPrice(billItem.getUnitPrice());
+                billItemResponse.setItemTotal(billItem.getUnitPrice()*billItem.getQuantity());
+
+                billItemResponses.add(billItemResponse);
+            }
+            billResponse.setItems(billItemResponses);
+            billResponses.add(billResponse);
+        }
+        return billResponses;
+    }
+
+    public List<BillResponse> getBillBetweenDate(LocalDateTime start, LocalDateTime end) {
+        List<BillResponse> billResponses = new ArrayList<>();
+        List<Bill> bills = billRepo.findByBillDateBetween(start, end);
+        if(bills.isEmpty()) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Bills Not Found between range "+start+" "+end
+            );
+        }
+        for(Bill bill : bills) {
+            List<BillItem> billItems = billItemRepo.findByBillId(bill.getId());
+            List<BillItemResponse> billItemResponses = new ArrayList<>();
+            BillResponse billResponse = new BillResponse();
+            billResponse.setBillDate(bill.getBillDate());
+            billResponse.setCustomer(bill.getCustomer());
+            billResponse.setId(bill.getId());
+            billResponse.setTotalAmount(bill.getTotalAmount());
+            for(BillItem billItem : billItems) {
+                BillItemResponse billItemResponse = new BillItemResponse();
+                billItemResponse.setQuantity(billItem.getQuantity());
+                billItemResponse.setProductName(billItem.getProduct().getProduct());
+                billItemResponse.setUnitPrice(billItem.getUnitPrice());
+                billItemResponse.setItemTotal(billItem.getUnitPrice()*billItem.getQuantity());
+
+                billItemResponses.add(billItemResponse);
+            }
+            billResponse.setItems(billItemResponses);
+            billResponses.add(billResponse);
+        }
+        return billResponses;
+    }
+
+    public List<BillResponse> getBillByCustomerName(String name) {
+        List<BillResponse> billResponses = new ArrayList<>();
+        List<Bill> bills = billRepo.findByCustomer_NameContainingIgnoreCase(name);
+        for(Bill bill : bills) {
+            List<BillItem> billItems = billItemRepo.findByBillId(bill.getId());
+            List<BillItemResponse> billItemResponses = new ArrayList<>();
+            BillResponse billResponse = new BillResponse();
+            billResponse.setBillDate(bill.getBillDate());
+            billResponse.setCustomer(bill.getCustomer());
+            billResponse.setId(bill.getId());
+            billResponse.setTotalAmount(bill.getTotalAmount());
+            for(BillItem billItem : billItems) {
+                BillItemResponse billItemResponse = new BillItemResponse();
+                billItemResponse.setQuantity(billItem.getQuantity());
+                billItemResponse.setProductName(billItem.getProduct().getProduct());
+                billItemResponse.setUnitPrice(billItem.getUnitPrice());
+                billItemResponse.setItemTotal(billItem.getUnitPrice()*billItem.getQuantity());
+
+                billItemResponses.add(billItemResponse);
+            }
+            billResponse.setItems(billItemResponses);
+            billResponses.add(billResponse);
+        }
+        return billResponses;
+    }
+
+    @Transactional
+    public void cancelBill(Integer id) {
+        Bill bill = billRepo.findById(id)
+                .orElseThrow(()->new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Bill Not Found with id : "+id
+                ));
+        if(bill.getStatus()== BillStatus.CANCELLED) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Bill already cancelled"
+            );
+        }
+        List<BillItem> billItems = billItemRepo.findByBillId(id);
+        for(BillItem billItem : billItems) {
+            Product product = productRepo.findById(billItem.getProduct().getId())
+                    .orElseThrow(()->new ResponseStatusException(
+                            HttpStatus.NOT_FOUND,
+                            "Product Not Found with id : "+billItem.getProduct().getId()
+                    ));
+            product.setQuantity(product.getQuantity()+billItem.getQuantity());
+        }
+        bill.setStatus(BillStatus.CANCELLED);
+        billRepo.save(bill);
+    }
+}
