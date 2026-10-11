@@ -15,9 +15,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -42,7 +44,7 @@ public class BillService {
             );
         }
         Bill bill = new Bill();
-        bill.setTotalAmount(0.0);
+        bill.setTotalAmount(BigDecimal.valueOf(0.0));
         bill.setBillDate(LocalDateTime.now());
         bill.setCustomer(customer);
         bill = billRepo.save(bill);
@@ -74,18 +76,18 @@ public class BillService {
             BillItemResponse billItemResponse = new BillItemResponse();
             billItemResponse.setProductName(product.getProduct());
             billItemResponse.setQuantity(billItemRequest.getQuantity());
-            billItemResponse.setUnitPrice(product.getPrice());
-            billItemResponse.setItemTotal(billItemRequest.getQuantity() * product.getPrice());
+            billItemResponse.setUnitPrice(BigDecimal.valueOf(product.getPrice()));
+            billItemResponse.setItemTotal(BigDecimal.valueOf(billItemRequest.getQuantity() * product.getPrice()));
             billItemResponses.add(billItemResponse);
 
             BillItem billItem = new BillItem();
             billItem.setBill(bill);
             billItem.setProduct(product);
             billItem.setQuantity(billItemRequest.getQuantity());
-            billItem.setUnitPrice(product.getPrice());
+            billItem.setUnitPrice(BigDecimal.valueOf(product.getPrice()));
             billItems.add(billItem);
         }
-        bill.setTotalAmount(totalPrice);
+        bill.setTotalAmount(BigDecimal.valueOf(totalPrice));
         billItemRepo.saveAll(billItems);
         billRepo.save(bill);
 
@@ -108,7 +110,7 @@ public class BillService {
         List<BillItemResponse> billItemResponses = new ArrayList<>();
         for(BillItem billItem : billItems) {
             BillItemResponse billItemResponse = new BillItemResponse();
-            billItemResponse.setItemTotal(billItem.getUnitPrice()* billItem.getQuantity());
+            billItemResponse.setItemTotal(BigDecimal.valueOf(billItem.getUnitPrice().doubleValue()* billItem.getQuantity().doubleValue()));
             billItemResponse.setUnitPrice(billItem.getUnitPrice());
             billItemResponse.setQuantity(billItem.getQuantity());
             billItemResponse.setProductName(billItem.getProduct().getProduct());
@@ -141,7 +143,7 @@ public class BillService {
                 billItemResponse.setQuantity(billItem.getQuantity());
                 billItemResponse.setProductName(billItem.getProduct().getProduct());
                 billItemResponse.setUnitPrice(billItem.getUnitPrice());
-                billItemResponse.setItemTotal(billItem.getUnitPrice()*billItem.getQuantity());
+                billItemResponse.setItemTotal(BigDecimal.valueOf(billItem.getUnitPrice().doubleValue()*billItem.getQuantity().doubleValue()));
 
                 billItemResponses.add(billItemResponse);
             }
@@ -173,7 +175,7 @@ public class BillService {
                 billItemResponse.setQuantity(billItem.getQuantity());
                 billItemResponse.setProductName(billItem.getProduct().getProduct());
                 billItemResponse.setUnitPrice(billItem.getUnitPrice());
-                billItemResponse.setItemTotal(billItem.getUnitPrice()*billItem.getQuantity());
+                billItemResponse.setItemTotal(BigDecimal.valueOf(billItem.getUnitPrice().doubleValue()*billItem.getQuantity().doubleValue()));
 
                 billItemResponses.add(billItemResponse);
             }
@@ -205,7 +207,7 @@ public class BillService {
                 billItemResponse.setQuantity(billItem.getQuantity());
                 billItemResponse.setProductName(billItem.getProduct().getProduct());
                 billItemResponse.setUnitPrice(billItem.getUnitPrice());
-                billItemResponse.setItemTotal(billItem.getUnitPrice()*billItem.getQuantity());
+                billItemResponse.setItemTotal(BigDecimal.valueOf(billItem.getUnitPrice().doubleValue()*billItem.getQuantity().doubleValue()));
 
                 billItemResponses.add(billItemResponse);
             }
@@ -231,7 +233,7 @@ public class BillService {
                 billItemResponse.setQuantity(billItem.getQuantity());
                 billItemResponse.setProductName(billItem.getProduct().getProduct());
                 billItemResponse.setUnitPrice(billItem.getUnitPrice());
-                billItemResponse.setItemTotal(billItem.getUnitPrice()*billItem.getQuantity());
+                billItemResponse.setItemTotal(BigDecimal.valueOf(billItem.getUnitPrice().doubleValue()*billItem.getQuantity().doubleValue()));
 
                 billItemResponses.add(billItemResponse);
             }
@@ -265,5 +267,46 @@ public class BillService {
         }
         bill.setStatus(BillStatus.CANCELLED);
         billRepo.save(bill);
+    }
+
+    @Transactional
+    public void updatePayment(Integer id, BigDecimal payment) {
+        Bill bill = billRepo.findById(id)
+                .orElseThrow(()->new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Bill Not Found with id : "+id
+                ));
+        if(bill.getStatus()==BillStatus.CANCELLED) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Bill was cancelled"
+            );
+        }
+        if(bill.getPaymentStatus() == PaymentStatus.PAID) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Payment already paid"
+            );
+        }
+        if (payment == null || payment.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Payment must be greater than 0"
+            );
+        }
+        BigDecimal remaining = bill.getTotalAmount().subtract(bill.getPaidAmount());
+        if (payment.compareTo(remaining) > 0){
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Payment must not exceed remaining amount"
+            );
+        }
+        BigDecimal newPaidAmount = bill.getPaidAmount().add(payment);
+        bill.setPaidAmount(newPaidAmount);
+        if (newPaidAmount.compareTo(bill.getTotalAmount()) == 0) {
+            bill.setPaymentStatus(PaymentStatus.PAID);
+        } else {
+            bill.setPaymentStatus(PaymentStatus.PARTIAL);
+        }
     }
 }

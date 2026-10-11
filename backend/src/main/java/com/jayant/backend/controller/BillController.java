@@ -6,6 +6,8 @@ import com.jayant.backend.services.BillService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -48,5 +50,10 @@ public class BillController {
     @PatchMapping("/cancell_bill/{id}")
     public void cancelBill(@PathVariable Integer id) {
         billService.cancelBill(id);
+    }
+
+    @PatchMapping("/bill_id/{id}/payment")
+    public void updatePayment(@PathVariable Integer id, @RequestParam BigDecimal payment) {
+        billService.updatePayment(id, payment);
     }
 }

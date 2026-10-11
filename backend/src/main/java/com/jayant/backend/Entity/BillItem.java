@@ -3,6 +3,8 @@ package com.jayant.backend.Entity;
 import jakarta.persistence.*;
 import lombok.Data;
 
+import java.math.BigDecimal;
+
 @Entity
 @Data
 public class BillItem {
@@ -16,5 +18,5 @@ public class BillItem {
     @JoinColumn(name = "product_id")
     private Product product;
     private Integer quantity;
-    private Double unitPrice;
+    private BigDecimal unitPrice;
 }

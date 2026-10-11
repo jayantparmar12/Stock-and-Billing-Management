@@ -3,6 +3,7 @@ package com.jayant.backend.Entity;
 import jakarta.persistence.*;
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -16,7 +17,10 @@ public class Bill {
     @JoinColumn(name = "customer_id")
     private Customer customer;
     private LocalDateTime billDate;
-    private Double totalAmount;
+    private BigDecimal totalAmount;
     @Enumerated(EnumType.STRING)
     private BillStatus status = BillStatus.ACTIVE;
+    @Enumerated(EnumType.STRING)
+    private PaymentStatus paymentStatus = PaymentStatus.UNPAID;
+    private BigDecimal paidAmount= BigDecimal.valueOf(0.0);
 }
