@@ -5,10 +5,7 @@ import com.jayant.backend.DTO.BillItemResponse;
 import com.jayant.backend.DTO.BillRequest;
 import com.jayant.backend.DTO.BillResponse;
 import com.jayant.backend.Entity.*;
-import com.jayant.backend.repository.BillItemRepo;
-import com.jayant.backend.repository.BillRepo;
-import com.jayant.backend.repository.CustomerRepo;
-import com.jayant.backend.repository.ProductRepo;
+import com.jayant.backend.repository.*;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -28,6 +25,7 @@ public class BillService {
     private final CustomerRepo customerRepo;
     private final ProductRepo productRepo;
     private final BillItemRepo billItemRepo;
+    private final PaymentRepo paymentRepo;
 
     @Transactional
     public BillResponse createBill(BillRequest request) {
@@ -301,6 +299,10 @@ public class BillService {
                     "Payment must not exceed remaining amount"
             );
         }
+        Payment obj = new Payment();
+        obj.setAmount(payment);
+        obj.setBill(bill);
+        obj.setPaymentDate(LocalDateTime.now());
         BigDecimal newPaidAmount = bill.getPaidAmount().add(payment);
         bill.setPaidAmount(newPaidAmount);
         if (newPaidAmount.compareTo(bill.getTotalAmount()) == 0) {
@@ -308,5 +310,16 @@ public class BillService {
         } else {
             bill.setPaymentStatus(PaymentStatus.PARTIAL);
         }
+        paymentRepo.save(obj);
+    }
+
+    public List<Payment> getPaymentByBill(Integer id) {
+        if(!billRepo.existsById(id)) {
+            throw new ResponseStatusException(
+                    HttpStatus.NOT_FOUND,
+                    "Bill Not Found with id : "+id
+            );
+        }
+        return paymentRepo.findByBillId(id);
     }
 }

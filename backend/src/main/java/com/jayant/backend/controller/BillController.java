@@ -2,6 +2,7 @@ package com.jayant.backend.controller;
 
 import com.jayant.backend.DTO.BillRequest;
 import com.jayant.backend.DTO.BillResponse;
+import com.jayant.backend.Entity.Payment;
 import com.jayant.backend.services.BillService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -55,5 +56,10 @@ public class BillController {
     @PatchMapping("/bill_id/{id}/payment")
     public void updatePayment(@PathVariable Integer id, @RequestParam BigDecimal payment) {
         billService.updatePayment(id, payment);
+    }
+
+    @GetMapping("{id}/payments")
+    public List<Payment> getPaymentByBill(@PathVariable Integer id) {
+        return billService.getPaymentByBill(id);
     }
 }
