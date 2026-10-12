@@ -2,6 +2,7 @@ package com.jayant.backend.services;
 
 import com.jayant.backend.DTO.DashboardResponse;
 import com.jayant.backend.Entity.BillStatus;
+import com.jayant.backend.Entity.Product;
 import com.jayant.backend.repository.BillRepo;
 import com.jayant.backend.repository.CustomerRepo;
 import com.jayant.backend.repository.ProductRepo;
@@ -9,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor

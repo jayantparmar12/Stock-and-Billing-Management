@@ -47,4 +47,9 @@ public class ProductController {
     public Product decreaseProduct(@PathVariable Integer id, @RequestParam Integer quantity) {
         return productService.decreaseProduct(id, quantity);
     }
+
+    @GetMapping("/low-stock")
+    public List<Product> getLowQuantityProduct(@RequestParam Integer threshold) {
+        return productService.getLowQuantityProduct(threshold);
+    }
 }

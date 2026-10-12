@@ -96,4 +96,8 @@ public class ProductService {
                 "Product Not Found with id : "+id
         );
     }
+
+    public List<Product> getLowQuantityProduct(Integer threshold) {
+        return productRepo.findByQuantityLessThan(threshold);
+    }
 }
