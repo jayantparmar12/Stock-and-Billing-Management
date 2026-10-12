@@ -27,6 +27,7 @@ public class BillService {
     private final BillItemRepo billItemRepo;
     private final PaymentRepo paymentRepo;
     private final RefundRepo refundRepo;
+    private final StockMovementService stockMovementService;
 
     @Transactional
     public BillResponse createBill(BillRequest request) {
@@ -68,6 +69,7 @@ public class BillService {
                         "Insufficient stock"
                 );
             }
+            StockMovement stockMovement = stockMovementService.saveStock(product, MovementType.SALE, billItemRequest.getQuantity(), product.getQuantity(), product.getQuantity() - billItemRequest.getQuantity(), "Bill created");
             product.setQuantity(product.getQuantity()-billItemRequest.getQuantity());
             productRepo.save(product);
             totalPrice += billItemRequest.getQuantity() * product.getPrice();
@@ -96,6 +98,7 @@ public class BillService {
         billResponse.setId(bill.getId());
         billResponse.setTotalAmount(bill.getTotalAmount());
         billResponse.setItems(billItemResponses);
+
         return billResponse;
     }
 
@@ -262,6 +265,7 @@ public class BillService {
                             HttpStatus.NOT_FOUND,
                             "Product Not Found with id : "+billItem.getProduct().getId()
                     ));
+            stockMovementService.saveStock(product, MovementType.BILL_CANCELLATION, billItem.getQuantity(), product.getQuantity(), billItem.getQuantity()+ product.getQuantity(), "Bill Cancel");
             product.setQuantity(product.getQuantity()+billItem.getQuantity());
         }
         bill.setStatus(BillStatus.CANCELLED);

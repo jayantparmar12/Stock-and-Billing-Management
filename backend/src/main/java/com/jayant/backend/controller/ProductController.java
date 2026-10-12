@@ -1,7 +1,9 @@
 package com.jayant.backend.controller;
 
 import com.jayant.backend.Entity.Product;
+import com.jayant.backend.Entity.StockMovement;
 import com.jayant.backend.services.ProductService;
+import com.jayant.backend.services.StockMovementService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -12,6 +14,7 @@ import java.util.List;
 @RequestMapping("api/products")
 public class ProductController {
     private final ProductService productService;
+    private final StockMovementService stockMovementService;
 
     @GetMapping
     public List<Product> getProducts(){
@@ -51,5 +54,10 @@ public class ProductController {
     @GetMapping("/low-stock")
     public List<Product> getLowQuantityProduct(@RequestParam Integer threshold) {
         return productService.getLowQuantityProduct(threshold);
+    }
+
+    @GetMapping("{id}/stock-history")
+    public List<StockMovement> getStockHistoryOfProduct(@PathVariable Integer id) {
+        return stockMovementService.getStockByProductId(id);
     }
 }
