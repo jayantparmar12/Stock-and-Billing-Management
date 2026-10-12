@@ -9,4 +9,5 @@ import java.util.List;
 
 @Repository
 public interface ProductRepo extends JpaRepository<Product, Integer> {
+    long countByQuantityLessThan(Integer quantity);
 }
