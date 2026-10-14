@@ -1,6 +1,8 @@
 package com.jayant.backend.Entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -15,6 +17,9 @@ public class Refund {
     @ManyToOne
     @JoinColumn(name = "bill_id")
     private Bill bill;
+
+    @NotNull(message = "Refund amount is required")
+    @Positive(message = "Refund amount must be greater than zero")
     private BigDecimal amount;
     private LocalDateTime refundDate;
 }

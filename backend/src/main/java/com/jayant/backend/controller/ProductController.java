@@ -1,9 +1,11 @@
 package com.jayant.backend.controller;
 
+import com.jayant.backend.DTO.ProductRequest;
 import com.jayant.backend.Entity.Product;
 import com.jayant.backend.Entity.StockMovement;
 import com.jayant.backend.services.ProductService;
 import com.jayant.backend.services.StockMovementService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -27,7 +29,7 @@ public class ProductController {
     }
 
     @PostMapping
-    public Product addProduct(@RequestBody Product product) {
+    public Product addProduct(@Valid @RequestBody ProductRequest product) {
         return productService.addProduct(product);
     }
 
@@ -37,7 +39,7 @@ public class ProductController {
     }
 
     @PutMapping
-    public Product editProduct(@RequestBody Product product) {
+    public Product editProduct(@Valid @RequestBody Product product) {
         return productService.editProduct(product);
     }
 

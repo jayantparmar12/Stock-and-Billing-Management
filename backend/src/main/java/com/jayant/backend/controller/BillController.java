@@ -5,6 +5,7 @@ import com.jayant.backend.DTO.BillResponse;
 import com.jayant.backend.Entity.Payment;
 import com.jayant.backend.Entity.Refund;
 import com.jayant.backend.services.BillService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -20,7 +21,7 @@ public class BillController {
     private final BillService billService;
 
     @PostMapping
-    public BillResponse createBill(@RequestBody BillRequest request) {
+    public BillResponse createBill(@Valid @RequestBody BillRequest request) {
         return billService.createBill(request);
     }
 

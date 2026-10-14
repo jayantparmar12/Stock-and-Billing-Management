@@ -1,7 +1,10 @@
 package com.jayant.backend.services;
 
+import com.jayant.backend.DTO.ProductRequest;
+import com.jayant.backend.Entity.Category;
 import com.jayant.backend.Entity.MovementType;
 import com.jayant.backend.Entity.Product;
+import com.jayant.backend.repository.CategoryRepo;
 import com.jayant.backend.repository.ProductRepo;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -16,8 +19,21 @@ import java.util.List;
 public class ProductService {
     private final ProductRepo productRepo;
     private final StockMovementService stockMovementService;
+    private final CategoryRepo categoryRepo;
 
-    public Product addProduct(Product product) {
+    public Product addProduct(ProductRequest productRequest) {
+        Category category = categoryRepo.findById(productRequest.getCategory())
+                .orElseThrow(()->
+                        new ResponseStatusException(
+                                HttpStatus.NOT_FOUND,
+                                "Category Not Found with id : "+productRequest.getCategory()
+                        )
+                );
+        Product product = new Product();
+        product.setQuantity(productRequest.getQuantity());
+        product.setCategory(category);
+        product.setPrice(productRequest.getPrice());
+        product.setProduct(productRequest.getProduct());
         return productRepo.save(product);
     }
 

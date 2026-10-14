@@ -2,6 +2,7 @@ package com.jayant.backend.controller;
 
 import com.jayant.backend.Entity.Customer;
 import com.jayant.backend.services.CustomerService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,7 +25,7 @@ public class CustomerController {
     }
 
     @PostMapping
-    public Customer addCustomer(@RequestBody Customer customer) {
+    public Customer addCustomer(@Valid @RequestBody Customer customer) {
         return customerService.addCustomer(customer);
     }
 

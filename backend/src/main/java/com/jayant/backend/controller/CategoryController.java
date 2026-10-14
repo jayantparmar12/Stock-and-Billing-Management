@@ -2,6 +2,7 @@ package com.jayant.backend.controller;
 
 import com.jayant.backend.Entity.Category;
 import com.jayant.backend.services.CategoryService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,12 +25,12 @@ public class CategoryController {
     }
 
     @PostMapping
-    public Category addCategory(@RequestBody Category category) {
+    public Category addCategory(@Valid @RequestBody Category category) {
         return categoryService.addCategory(category);
     }
 
     @PutMapping
-    public Category editCategory(@RequestBody Category category) {
+    public Category editCategory(@Valid @RequestBody Category category) {
         return categoryService.editCategory(category);
     }
 
