@@ -1,5 +1,6 @@
 package com.jayant.backend.controller;
 
+import com.jayant.backend.DTO.ApiResponse;
 import com.jayant.backend.DTO.ProductRequest;
 import com.jayant.backend.Entity.Product;
 import com.jayant.backend.Entity.StockMovement;
@@ -19,47 +20,47 @@ public class ProductController {
     private final StockMovementService stockMovementService;
 
     @GetMapping
-    public List<Product> getProducts(){
+    public ApiResponse<List<Product>> getProducts(){
         return productService.getProducts();
     }
 
     @GetMapping("/{id}")
-    public Product getProductById(@PathVariable Integer id) {
+    public ApiResponse<Product> getProductById(@PathVariable Integer id) {
         return productService.getProductById(id);
     }
 
     @PostMapping
-    public Product addProduct(@Valid @RequestBody ProductRequest product) {
+    public ApiResponse<Product> addProduct(@Valid @RequestBody ProductRequest product) {
         return productService.addProduct(product);
     }
 
     @DeleteMapping("/{id}")
-    public void deleteProduct(@PathVariable Integer id) {
-        productService.deleteProduct(id);
+    public ApiResponse<Void> deleteProduct(@PathVariable Integer id) {
+        return productService.deleteProduct(id);
     }
 
     @PutMapping
-    public Product editProduct(@Valid @RequestBody Product product) {
+    public ApiResponse<Product> editProduct(@Valid @RequestBody ProductRequest product) {
         return productService.editProduct(product);
     }
 
     @PatchMapping("/{id}/increase-stock")
-    public Product increateProduct(@PathVariable Integer id, @RequestParam Integer quantity) {
-        return productService.increateProduct(id, quantity);
+    public ApiResponse<Product> increaseProduct(@PathVariable Integer id, @RequestParam Integer quantity) {
+        return productService.increaseProduct(id, quantity);
     }
 
     @PatchMapping("/{id}/decrease-stock")
-    public Product decreaseProduct(@PathVariable Integer id, @RequestParam Integer quantity) {
+    public ApiResponse<Product> decreaseProduct(@PathVariable Integer id, @RequestParam Integer quantity) {
         return productService.decreaseProduct(id, quantity);
     }
 
     @GetMapping("/low-stock")
-    public List<Product> getLowQuantityProduct(@RequestParam Integer threshold) {
+    public ApiResponse<List<Product>> getLowQuantityProduct(@RequestParam Integer threshold) {
         return productService.getLowQuantityProduct(threshold);
     }
 
     @GetMapping("{id}/stock-history")
-    public List<StockMovement> getStockHistoryOfProduct(@PathVariable Integer id) {
+    public ApiResponse<List<StockMovement>> getStockHistoryOfProduct(@PathVariable Integer id) {
         return stockMovementService.getStockByProductId(id);
     }
 }

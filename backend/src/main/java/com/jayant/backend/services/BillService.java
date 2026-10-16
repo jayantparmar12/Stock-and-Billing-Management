@@ -1,9 +1,6 @@
 package com.jayant.backend.services;
 
-import com.jayant.backend.DTO.BillItemRequest;
-import com.jayant.backend.DTO.BillItemResponse;
-import com.jayant.backend.DTO.BillRequest;
-import com.jayant.backend.DTO.BillResponse;
+import com.jayant.backend.DTO.*;
 import com.jayant.backend.Entity.*;
 import com.jayant.backend.repository.*;
 import jakarta.transaction.Transactional;
@@ -30,7 +27,7 @@ public class BillService {
     private final StockMovementService stockMovementService;
 
     @Transactional
-    public BillResponse createBill(BillRequest request) {
+    public ApiResponse<BillResponse> createBill(BillRequest request) {
         Customer customer = customerRepo.findById(request.getCustomer_id())
                 .orElseThrow(()-> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
@@ -99,10 +96,10 @@ public class BillService {
         billResponse.setTotalAmount(bill.getTotalAmount());
         billResponse.setItems(billItemResponses);
 
-        return billResponse;
+        return new ApiResponse<>(true, "Bill Created Successfully",billResponse);
     }
 
-    public BillResponse getBillById(Integer id) {
+    public ApiResponse<BillResponse> getBillById(Integer id) {
         Bill bill = billRepo.findById(id)
                 .orElseThrow(()-> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
@@ -125,10 +122,10 @@ public class BillService {
         billResponse.setBillDate(bill.getBillDate());
         billResponse.setItems(billItemResponses);
 
-        return billResponse;
+        return new ApiResponse<>(true, "Bill with id : "+id, billResponse);
     }
 
-    public List<BillResponse> getAllBills() {
+    public ApiResponse<List<BillResponse>> getAllBills() {
         List<Bill> bills = billRepo.findAll();
         List<BillResponse> billResponses = new ArrayList<>();
 
@@ -152,10 +149,10 @@ public class BillService {
             billResponse.setItems(billItemResponses);
             billResponses.add(billResponse);
         }
-        return billResponses;
+        return new ApiResponse<>(true, "List of Bills", billResponses);
     }
 
-    public List<BillResponse> getBillByCustomerId(Integer id) {
+    public ApiResponse<List<BillResponse>> getBillByCustomerId(Integer id) {
         if(!customerRepo.existsById(id)) {
             throw new ResponseStatusException(
                     HttpStatus.NOT_FOUND,
@@ -184,10 +181,10 @@ public class BillService {
             billResponse.setItems(billItemResponses);
             billResponses.add(billResponse);
         }
-        return billResponses;
+        return new ApiResponse<>(true, "List of Bill according to customer id : "+id, billResponses);
     }
 
-    public List<BillResponse> getBillBetweenDate(LocalDateTime start, LocalDateTime end) {
+    public ApiResponse<List<BillResponse>> getBillBetweenDate(LocalDateTime start, LocalDateTime end) {
         List<BillResponse> billResponses = new ArrayList<>();
         List<Bill> bills = billRepo.findByBillDateBetween(start, end);
         if(bills.isEmpty()) {
@@ -216,10 +213,10 @@ public class BillService {
             billResponse.setItems(billItemResponses);
             billResponses.add(billResponse);
         }
-        return billResponses;
+        return new ApiResponse<>(true, "List of bill with in range", billResponses);
     }
 
-    public List<BillResponse> getBillByCustomerName(String name) {
+    public ApiResponse<List<BillResponse>> getBillByCustomerName(String name) {
         List<BillResponse> billResponses = new ArrayList<>();
         List<Bill> bills = billRepo.findByCustomer_NameContainingIgnoreCase(name);
         for(Bill bill : bills) {
@@ -242,11 +239,11 @@ public class BillService {
             billResponse.setItems(billItemResponses);
             billResponses.add(billResponse);
         }
-        return billResponses;
+        return new ApiResponse<>(true, "List of bills according to customer name : "+name, billResponses);
     }
 
     @Transactional
-    public void cancelBill(Integer id) {
+    public ApiResponse<Void> cancelBill(Integer id) {
         Bill bill = billRepo.findById(id)
                 .orElseThrow(()->new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
@@ -281,10 +278,11 @@ public class BillService {
         }
 
         billRepo.save(bill);
+        return new ApiResponse<>(true, "Bill Cancelled Successfully", null);
     }
 
     @Transactional
-    public void updatePayment(Integer id, BigDecimal payment) {
+    public ApiResponse<Void> updatePayment(Integer id, BigDecimal payment) {
         Bill bill = billRepo.findById(id)
                 .orElseThrow(()->new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
@@ -327,25 +325,27 @@ public class BillService {
             bill.setPaymentStatus(PaymentStatus.PARTIAL);
         }
         paymentRepo.save(obj);
+
+        return new ApiResponse<>(true, "Payment updated successfully", null);
     }
 
-    public List<Payment> getPaymentByBill(Integer id) {
+    public ApiResponse<List<Payment>> getPaymentByBill(Integer id) {
         if(!billRepo.existsById(id)) {
             throw new ResponseStatusException(
                     HttpStatus.NOT_FOUND,
                     "Bill Not Found with id : "+id
             );
         }
-        return paymentRepo.findByBillId(id);
+        return new ApiResponse<>(true, "List of payment of bill id : "+id, paymentRepo.findByBillId(id));
     }
 
-    public List<Refund> getRefundHistory(Integer id) {
+    public ApiResponse<List<Refund>> getRefundHistory(Integer id) {
         if(!billRepo.existsById(id)) {
             throw new ResponseStatusException(
                     HttpStatus.NOT_FOUND,
                     "Bill Not Found with id : "+id
             );
         }
-        return refundRepo.findByBillId(id);
+        return new ApiResponse<>(true, "Refund history of bill id : "+id, refundRepo.findByBillId(id));
     }
 }

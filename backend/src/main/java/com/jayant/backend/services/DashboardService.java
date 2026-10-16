@@ -1,5 +1,6 @@
 package com.jayant.backend.services;
 
+import com.jayant.backend.DTO.ApiResponse;
 import com.jayant.backend.DTO.DashboardResponse;
 import com.jayant.backend.Entity.BillStatus;
 import com.jayant.backend.Entity.Product;
@@ -19,7 +20,7 @@ public class DashboardService {
     private final CustomerRepo customerRepo;
     private final BillRepo billRepo;
 
-    public DashboardResponse getDashboard() {
+    public ApiResponse<DashboardResponse> getDashboard() {
         long totalProducts = productRepo.count();
         long totalCustomers = customerRepo.count();
         long lowStockProducts = productRepo.countByQuantityLessThan(11);
@@ -33,6 +34,6 @@ public class DashboardService {
         dashboardResponse.setTotalCustomers(totalCustomers);
         dashboardResponse.setTotalProducts(totalProducts);
 
-        return dashboardResponse;
+        return new ApiResponse<>(true, "Dashboard", dashboardResponse);
     }
 }

@@ -1,5 +1,6 @@
 package com.jayant.backend.services;
 
+import com.jayant.backend.DTO.ApiResponse;
 import com.jayant.backend.DTO.ProductRequest;
 import com.jayant.backend.Entity.Category;
 import com.jayant.backend.Entity.MovementType;
@@ -21,7 +22,7 @@ public class ProductService {
     private final StockMovementService stockMovementService;
     private final CategoryRepo categoryRepo;
 
-    public Product addProduct(ProductRequest productRequest) {
+    public ApiResponse<Product> addProduct(ProductRequest productRequest) {
         Category category = categoryRepo.findById(productRequest.getCategory())
                 .orElseThrow(()->
                         new ResponseStatusException(
@@ -34,25 +35,30 @@ public class ProductService {
         product.setCategory(category);
         product.setPrice(productRequest.getPrice());
         product.setProduct(productRequest.getProduct());
-        return productRepo.save(product);
+        product = productRepo.save(product);
+
+        return new ApiResponse<>(true, "Product created", product);
     }
 
-    public List<Product> getProducts() {
-        return productRepo.findAll();
+    public ApiResponse<List<Product>> getProducts() {
+        List<Product> products = productRepo.findAll();
+        return new ApiResponse<>(true, "List of products", products);
     }
 
-    public Product getProductById(Integer id) {
-            return productRepo.findById(id)
+    public ApiResponse<Product> getProductById(Integer id) {
+            Product product = productRepo.findById(id)
                     .orElseThrow(()->new ResponseStatusException(
                             HttpStatus.NOT_FOUND,
                             "Product Not Found with id : "+id
                     )
             );
+            return new ApiResponse<>(true, "Product by id", product);
     }
 
-    public void deleteProduct(Integer id) {
+    public ApiResponse<Void> deleteProduct(Integer id) {
         if(productRepo.existsById(id)){
             productRepo.deleteById(id);
+            return new ApiResponse<>(true, "Product deleted successfully", null);
         }
         else {
             throw new ResponseStatusException(
@@ -62,19 +68,29 @@ public class ProductService {
         }
     }
 
-    public Product editProduct(Product product) {
-        int id = product.getId();
-        if(productRepo.existsById(id)){
-            return productRepo.save(product);
-        }
-        throw new ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Product Not Fount with id : "+id
-        );
+    public ApiResponse<Product> editProduct(ProductRequest productRequest) {
+
+        Product product = productRepo.findById(productRequest.getId())
+                .orElseThrow(()-> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Product not found with id : "+productRequest.getId()
+                ));
+        product.setQuantity(productRequest.getQuantity());
+        product.setProduct(productRequest.getProduct());
+        product.setPrice(productRequest.getPrice());
+        Category category = categoryRepo.findById(productRequest.getCategory())
+                        .orElseThrow(()-> new ResponseStatusException(
+                                HttpStatus.NOT_FOUND,
+                                "Category Not Found with id : "+ productRequest.getCategory()
+                        ));
+        product.setCategory(category);
+        product = productRepo.save(product);
+        return new ApiResponse<>(true, "Product edited successfully", product);
+
     }
 
     @Transactional
-    public Product increateProduct(Integer id, Integer quantity) {
+    public ApiResponse<Product> increaseProduct(Integer id, Integer quantity) {
         if(productRepo.existsById(id)) {
             if (quantity <= 0) {
                 throw new ResponseStatusException(
@@ -83,11 +99,14 @@ public class ProductService {
                 );
             }
             Product product = productRepo.findById(id)
-                    .orElseThrow(() -> new RuntimeException("Product Not Found : " + id));
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.NOT_FOUND,
+                            "Product Not Found : " + id));
 
             stockMovementService.saveStock(product, MovementType.STOCK_IN, quantity, product.getQuantity(), product.getQuantity()+quantity, "add a new stock");
             product.setQuantity(product.getQuantity() + quantity);
-            return productRepo.save(product);
+            product = productRepo.save(product);
+            return  new ApiResponse<>(true, "Stock increased successfully", product);
         }
         throw new ResponseStatusException(
                 HttpStatus.NOT_FOUND,
@@ -96,8 +115,7 @@ public class ProductService {
     }
 
     @Transactional
-    public Product decreaseProduct(Integer id, Integer quantity) {
-        if (productRepo.existsById(id)) {
+    public ApiResponse<Product> decreaseProduct(Integer id, Integer quantity) {
             if (quantity <= 0) {
                 throw new ResponseStatusException(
                         HttpStatus.BAD_REQUEST,
@@ -105,7 +123,9 @@ public class ProductService {
                 );
             }
             Product product = productRepo.findById(id)
-                    .orElseThrow(() -> new RuntimeException("Product Not Found : " + id));
+                    .orElseThrow(() -> new ResponseStatusException(
+                            HttpStatus.NOT_FOUND,
+                            "Product Not Found : " + id));
             if (product.getQuantity() < quantity) {
                 throw new ResponseStatusException(
                         HttpStatus.BAD_REQUEST,
@@ -114,15 +134,11 @@ public class ProductService {
             }
             stockMovementService.saveStock(product, MovementType.ADJUSTMENT, quantity, product.getQuantity(), product.getQuantity()-quantity, "decrease stock");
             product.setQuantity(product.getQuantity() - quantity);
-            return productRepo.save(product);
-        }
-        throw new ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Product Not Found with id : "+id
-        );
+            product = productRepo.save(product);
+            return new ApiResponse<>(true, "Product decreased successfully", product);
     }
 
-    public List<Product> getLowQuantityProduct(Integer threshold) {
-        return productRepo.findByQuantityLessThan(threshold);
+    public ApiResponse<List<Product>> getLowQuantityProduct(Integer threshold) {
+        return new ApiResponse<>(true, "Low quantity products", productRepo.findByQuantityLessThan(threshold));
     }
 }

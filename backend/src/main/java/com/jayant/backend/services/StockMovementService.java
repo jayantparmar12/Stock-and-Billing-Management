@@ -1,5 +1,6 @@
 package com.jayant.backend.services;
 
+import com.jayant.backend.DTO.ApiResponse;
 import com.jayant.backend.Entity.MovementType;
 import com.jayant.backend.Entity.Product;
 import com.jayant.backend.Entity.StockMovement;
@@ -34,13 +35,13 @@ public class StockMovementService {
         return stockMovementRepo.save(stockMovement);
     }
 
-    public List<StockMovement> getStockByProductId(Integer id) {
+    public ApiResponse<List<StockMovement>> getStockByProductId(Integer id) {
         if(!productRepo.existsById(id)){
             throw new  ResponseStatusException(
                     HttpStatus.NOT_FOUND,
                     "Product Not Found with id : "+id
             );
         }
-        return stockMovementRepo.findByProductIdOrderByMovementDateDesc(id);
+        return new ApiResponse<>(true, "List of low quantity product , product id : "+id, stockMovementRepo.findByProductIdOrderByMovementDateDesc(id));
     }
 }

@@ -1,5 +1,6 @@
 package com.jayant.backend.controller;
 
+import com.jayant.backend.DTO.ApiResponse;
 import com.jayant.backend.DTO.DashboardResponse;
 import com.jayant.backend.services.DashboardService;
 import lombok.RequiredArgsConstructor;
@@ -14,7 +15,7 @@ public class DashboardController {
     private final DashboardService dashboardService;
 
     @GetMapping
-    public DashboardResponse getDashboard() {
+    public ApiResponse<DashboardResponse> getDashboard() {
         return dashboardService.getDashboard();
     }
 }

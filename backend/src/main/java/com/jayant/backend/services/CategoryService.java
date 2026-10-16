@@ -1,5 +1,6 @@
 package com.jayant.backend.services;
 
+import com.jayant.backend.DTO.ApiResponse;
 import com.jayant.backend.Entity.Category;
 import com.jayant.backend.repository.CategoryRepo;
 import lombok.RequiredArgsConstructor;
@@ -14,25 +15,26 @@ import java.util.List;
 public class CategoryService {
     private final CategoryRepo categoryRepo;
 
-    public List<Category> getAllCategory() {
-        return categoryRepo.findAll();
+    public ApiResponse<List<Category>> getAllCategory() {
+        return new ApiResponse<>(true, "List of Categories", categoryRepo.findAll());
     }
 
-    public Category getCategoryById(Integer id) {
-        return categoryRepo.findById(id)
+    public ApiResponse<Category> getCategoryById(Integer id) {
+        Category category = categoryRepo.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
                         "Category Not Found with id : "+id
                 ));
+        return new ApiResponse<>(true, "Category by id : "+id, category);
     }
 
-    public Category addCategory(Category category) {
-        return categoryRepo.save(category);
+    public ApiResponse<Category> addCategory(Category category) {
+        return new ApiResponse<>(true, "Category added successfully",categoryRepo.save(category));
     }
 
-    public Category editCategory(Category category) {
+    public ApiResponse<Category> editCategory(Category category) {
         if(categoryRepo.existsById(category.getId())) {
-            return categoryRepo.save(category);
+            return new ApiResponse<>(true, "Category edited successfully", categoryRepo.save(category));
         }
         throw new ResponseStatusException(
                 HttpStatus.NOT_FOUND,
@@ -40,7 +42,7 @@ public class CategoryService {
         );
     }
 
-    public void deleteCategory(Integer id) {
+    public ApiResponse<Void> deleteCategory(Integer id) {
         if(categoryRepo.existsById(id)) {
             categoryRepo.deleteById(id);
         }
@@ -50,5 +52,6 @@ public class CategoryService {
                     "Category Not Found with id : "+id
             );
         }
+        return new ApiResponse<>(true, "Category deleted successfully", null);
     }
 }

@@ -1,5 +1,6 @@
 package com.jayant.backend.services;
 
+import com.jayant.backend.DTO.ApiResponse;
 import com.jayant.backend.Entity.Customer;
 import com.jayant.backend.repository.CustomerRepo;
 import lombok.RequiredArgsConstructor;
@@ -14,24 +15,26 @@ import java.util.List;
 public class CustomerService {
     private final CustomerRepo customerRepo;
 
-    public List<Customer> getAllCustomers() {
-        return customerRepo.findAll();
+    public ApiResponse<List<Customer>> getAllCustomers() {
+        return new ApiResponse<>(true, "List of customers", customerRepo.findAll());
     }
 
-    public Customer getCustomerById(Integer id) {
-        return customerRepo.findById(id).orElseThrow(()-> new ResponseStatusException(
+    public ApiResponse<Customer> getCustomerById(Integer id) {
+        Customer customer = customerRepo.findById(id).orElseThrow(()-> new ResponseStatusException(
                 HttpStatus.NOT_FOUND,
                 "Customer Not Found with id : "+id
         ));
+        return new ApiResponse<>(true, "Customer of id : "+id, customer);
     }
 
-    public Customer addCustomer(Customer customer) {
-        return customerRepo.save(customer);
+    public ApiResponse<Customer> addCustomer(Customer customer) {
+        return new ApiResponse<>(true, "Customer is added successfully", customerRepo.save(customer));
     }
 
-    public void deleteCustomer(Integer id) {
+    public ApiResponse<Void> deleteCustomer(Integer id) {
         if(customerRepo.existsById(id)) {
             customerRepo.deleteById(id);
+            return new ApiResponse<>(true, "Customer is deleted", null);
         } else {
             throw new ResponseStatusException(
                     HttpStatus.NOT_FOUND,
@@ -40,10 +43,10 @@ public class CustomerService {
         }
     }
 
-    public Customer editCustomer(Integer id, Customer customer) {
+    public ApiResponse<Customer> editCustomer(Integer id, Customer customer) {
         if(customerRepo.existsById(id)) {
             customer.setId(id);
-            return customerRepo.save(customer);
+            return new ApiResponse<>(true, "Customer edited successfully", customerRepo.save(customer));
         }
         throw new ResponseStatusException(
                 HttpStatus.NOT_FOUND,

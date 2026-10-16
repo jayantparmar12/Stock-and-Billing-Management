@@ -12,6 +12,9 @@ import lombok.Data;
 
 @Data
 public class ProductRequest {
+    @NotNull(message = "id is required")
+    @Positive(message = "id must be positive")
+    private Integer id;
 
     @Column(unique = true)
     @NotBlank(message = "product name is required")
