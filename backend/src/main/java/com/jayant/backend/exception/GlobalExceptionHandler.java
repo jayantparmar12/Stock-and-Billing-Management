@@ -1,5 +1,6 @@
 package com.jayant.backend.exception;
 
+import com.jayant.backend.DTO.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -21,138 +22,100 @@ import java.util.Map;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(ResponseStatusException.class)
-    public ResponseEntity<Map<String, Object>> handleResponseStatusException(
+    public ResponseEntity<ApiResponse<Object>> handleResponseStatusException(
             ResponseStatusException ex,
             HttpServletRequest request
     ){
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("timestamp", LocalDateTime.now());
-        body.put("status",ex.getStatusCode().value());
-        body.put("error", HttpStatus.valueOf(ex.getStatusCode().value()).getReasonPhrase());
-        body.put("message",ex.getReason());
-        body.put("path", request.getRequestURI());
-
-        return new ResponseEntity<>(body, ex.getStatusCode());
+        return new ResponseEntity<>(
+                new ApiResponse<>(false, ex.getReason(), null),
+                ex.getStatusCode());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, Object>> handleValidationException(
+    public ResponseEntity<ApiResponse<Object>> handleValidationException(
             MethodArgumentNotValidException ex,
             HttpServletRequest request
     ) {
-        Map<String, Object> body = new LinkedHashMap<>();
+        String message = ex.getBindingResult()
+                .getFieldErrors()
+                .stream()
+                .map(error -> error.getField() + ": " + error.getDefaultMessage())
+                .collect(java.util.stream.Collectors.joining(", "));
 
-        body.put("timestamp", LocalDateTime.now());
-        body.put("status", HttpStatus.BAD_REQUEST.value());
-        body.put("error", "Bad Request");
-
-        Map<String, String> errors = new LinkedHashMap<>();
-        ex.getBindingResult().getFieldErrors().forEach(error ->
-                errors.put(error.getField(), error.getDefaultMessage()));
-
-        body.put("message", "Validation failed");
-        body.put("validationErrors", errors);
-        body.put("path", request.getRequestURI());
-
-        return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+        if (message.isEmpty()) {
+            message = "Request validation failed";
+        }
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(new ApiResponse<>(false, message, null));
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
-    public ResponseEntity<Map<String, Object>> handleTypeMismatch(
+    public ResponseEntity<ApiResponse<Object>> handleTypeMismatch(
             MethodArgumentTypeMismatchException ex,
             HttpServletRequest request
     ) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("timestamp", LocalDateTime.now());
-        body.put("status", HttpStatus.BAD_REQUEST.value());
-        body.put("error", "Bad Request");
-        body.put("message","Invalid value for parameter " + ex.getName());
-        body.put("path", request.getRequestURI());
-
-        return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+        String message = "Invalid value for parameter: " + ex.getName();
+        return new ResponseEntity<>(new ApiResponse<>(false, message, null), HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(MissingServletRequestParameterException.class)
-    public ResponseEntity<Map<String, Object>> handleRequestParameter(
+    public ResponseEntity<ApiResponse<Object>> handleRequestParameter(
             MissingServletRequestParameterException ex,
             HttpServletRequest request
     ) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("timestamp", LocalDateTime.now());
-        body.put("status", HttpStatus.BAD_REQUEST.value());
-        body.put("error", "Bad Request");
-        body.put("message", "Required parameter '" + ex.getParameterName() + "' is missing");
-        body.put("path", request.getRequestURI());
-
-        return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+        String message = "Required parameter is missing: " + ex.getParameterName();
+        return new ResponseEntity<>(new ApiResponse<>(false, message, null), HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
-    public ResponseEntity<Map<String, Object>> handleDataViolation(
+    public ResponseEntity<ApiResponse<Object>> handleDataViolation(
             DataIntegrityViolationException ex,
             HttpServletRequest request
     ) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("timestamp", LocalDateTime.now());
-        body.put("status", HttpStatus.CONFLICT.value());
-        body.put("error", "Conflict");
-        body.put("message", "The resion is "+ex.getCause());
-        body.put("path", request.getRequestURI());
+        String message = "Data integrity violation";
 
-        return new ResponseEntity<>(
-                body,
-                HttpStatus.CONFLICT
-        );
+        Throwable cause = ex.getMostSpecificCause();
+        String details = cause.getMessage();
+
+        if (details != null && details.toLowerCase().contains("duplicate")) {
+            message = "A record with this value already exists";
+        } else if (details != null && details.toLowerCase().contains("foreign key")) {
+            message = "Related record does not exist or is still in use";
+        }
+
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(new ApiResponse<>(false, message, null));
     }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
-    public ResponseEntity<Map<String, Object>> handleMethodNotSupported(
+    public ResponseEntity<ApiResponse<Object>> handleMethodNotSupported(
             HttpRequestMethodNotSupportedException ex,
             HttpServletRequest request
     ) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("timestamp", LocalDateTime.now());
-        body.put("status", HttpStatus.METHOD_NOT_ALLOWED.value());
-        body.put("error", "Method Not Allowed");
-        body.put("message", "HTTP method " + ex.getMethod()
-                + " is not supported for this endpoint");
-        body.put("path", request.getRequestURI());
-
-        return new ResponseEntity<>(body, HttpStatus.METHOD_NOT_ALLOWED);
+        return new ResponseEntity<>(new ApiResponse<>(false, "HTTP method " + ex.getMethod()+ " is not supported for this endpoint", null), HttpStatus.METHOD_NOT_ALLOWED);
     }
 
     @ExceptionHandler(NoResourceFoundException.class)
-    public ResponseEntity<Map<String, Object>> handleNoResourceException(
+    public ResponseEntity<ApiResponse<Object>> handleNoResourceException(
             NoResourceFoundException ex,
             HttpServletRequest request
     ) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("timestamp",LocalDateTime.now());
-        body.put("status",HttpStatus.NOT_FOUND.value());
-        body.put("error", "Not Found");
-        body.put("message",ex.getMessage());
-        body.put("path", request.getRequestURI());
-
-        return new ResponseEntity<>(body, HttpStatus.NOT_FOUND);
+        return new ResponseEntity<>(new ApiResponse<>(false, ex.getMessage(), null), HttpStatus.NOT_FOUND);
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, Object>> handleGenericException(
+    public ResponseEntity<ApiResponse<Object>> handleGenericException(
             Exception ex,
             HttpServletRequest request
     ) {
-        Map<String, Object> map = new LinkedHashMap<>();
-        map.put("timestamp", LocalDateTime.now());
-        map.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
-        map.put("error", "Integer Server Error");
-        map.put("message", "Something went wrong. Please try again later.");
-        map.put("path", request.getRequestURI());
 
         System.err.println(ex.getClass().getName());
         ex.printStackTrace();
 
         return new ResponseEntity<>(
-                map,
+                new ApiResponse<>(false, "Internal server error", null),
                 HttpStatus.INTERNAL_SERVER_ERROR
         );
     }
