@@ -1,18 +1,123 @@
-nav{
+nav {
     display: flex;
     height: 60px;
     justify-content: space-between;
     align-items: center;
     padding: 0px 20px;
+    gap: 15px;
+    width: 100%;
 }
 
-.options{
+nav .title {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+nav .title h1 {
+    display: flex;
+    align-items: center;
+    margin: 0;
+}
+
+.options {
     display: flex;
     align-items: center;
     gap: 20px;
+    min-width: 0;
 }
 
-.user{
+.user {
     display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
 }
 
+.search {
+    border: 1px solid #9ca3af;
+    display: flex;
+    border-radius: 8px;
+    align-items: center;
+    gap: 4px;
+    height: 36px;
+    width: 320px;
+    max-width: 100%;
+    min-width: 0px;
+    padding: 0 10px;
+
+}
+
+.search svg {
+    height: 18px;
+    width: 18px;
+    flex-shrink: 0;
+}
+
+.search input {
+    width: 100%;
+    min-width: 0;
+    border: none;
+    flex-shrink: 1;
+    outline: none;
+    height: 100%;
+    background: transparent;
+    font-size: 14px;
+}
+
+.options > svg {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+
+/* Tablets */
+@media (max-width: 768px) {
+    nav {
+        padding: 0 12px;
+        gap: 10px;
+    }
+
+    .options {
+        gap: 12px;
+        flex: 1;
+        justify-content: flex-end;
+    }
+
+    .search {
+        width: 220px;
+    }
+}
+
+/* Mobile phones */
+@media (max-width: 555px) {
+    nav {
+        padding: 0 10px;
+        gap: 8px;
+    }
+
+    .options {
+        gap: 12px;
+    }
+
+    .search {
+        width: 36px;
+        height: 36px;
+        padding: 0;
+        justify-content: center;
+        border: none;
+    }
+
+    .search input {
+        display: none;
+    }
+
+    .user {
+        gap: 4px;
+    }
+
+    .user > div:last-child {
+        display: none;
+    }
+}
