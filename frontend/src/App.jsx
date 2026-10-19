@@ -6,6 +6,10 @@ import Dashboard from "./pages/Dashboard/Dashboard.jsx";
 import Products from "./pages/Products/Products.jsx";
 import Categories from "./pages/Categories/Categories.jsx";
 import Customers from "./pages/Customers/Customers.jsx";
+import Billing from "./pages/Billling/Billing.jsx";
+import Payments from "./pages/Payments/Payments.jsx";
+import Refunds from "./pages/Refunds/Refunds.jsx";
+import StockHistory from "./pages/StockHistory/StockHistory.jsx";
 
 function PagePlaceholder({ title }) {
   return (
@@ -39,19 +43,19 @@ export default function App() {
           />
           <Route
             path="/billing"
-            element={<PagePlaceholder title="Billing" />}
+            element={<Billing />}
           />
           <Route
             path="/payments"
-            element={<PagePlaceholder title="Payments" />}
+            element={<Payments />}
           />
           <Route
             path="/refunds"
-            element={<PagePlaceholder title="Refunds" />}
+            element={<Refunds />}
           />
           <Route
             path="/stock-history"
-            element={<PagePlaceholder title="Stock History" />}
+            element={<StockHistory />}
           />
         </Route>
 

@@ -1,5 +1,5 @@
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   Search,
   Plus,
@@ -10,6 +10,10 @@ import {
   ChevronDown,
 } from "lucide-react";
 import "./Products.css";
+
+import api from '../../services/api';
+import axios from "axios";
+
 
 const initialProducts = [
   { id: 1, name: "Wireless Mouse", sku: "PRD-1001", category: "Accessories", price: 799, quantity: 42 },
@@ -51,33 +55,75 @@ export default function Products() {
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const categories = useMemo(
-    () => ["All", ...new Set(products.map((product) => product.category))],
-    [products]
-  );
+  const [realProducts, setRealProducts] = useState([]);
+  const [categories, setCategoreis] = useState([])
+  useEffect(()=>{
+    const featchProducts = async () => {
+      try{
+        setLoading(true)
+        setError(false)
+
+        const response = await api.get('/api/products');
+        if(response.data.success) {
+          setRealProducts(response.data.data)
+        }
+        else {
+          setError(response.data.message || 'Unable to laod products')
+        }
+      }
+      catch(err){
+        setError(
+          err.response.data.message || 'Unabel to connect with backend'
+        )
+      }
+      finally {
+        setLoading(false)
+      }
+    }
+    featchProducts()
+  },[])
+
+  useEffect(()=>{
+    const featchCategory = async () =>{
+      try{
+        setLoading(true)
+        setError(false)
+        const resposne = await api.get('/api/categories')
+        if(resposne.data.success) {
+          setCategoreis(resposne.data.data)
+        }
+      } catch(err){
+          setFormError(
+            err.response.data.message || 'Unable to connect with backend'
+          )
+      }
+      finally{
+        setLoading(false)
+      }
+    }
+    featchCategory()
+  },[])
+  
+  console.log(realProducts)
+  console.log(categories)
+  
 
   const filteredProducts = useMemo(() => {
-    return products.filter((product) => {
+    return realProducts.filter((product) => {
+      const query = search.toLowerCase().trim();
+
       const matchesSearch =
-        product.name.toLowerCase().includes(search.toLowerCase()) ||
-        product.sku.toLowerCase().includes(search.toLowerCase());
+        (product.product ?? '').trim().toLowerCase().includes(query) ||
+        String(product.id ?? '').trim().includes(query);
 
-      const matchesCategory =
-        categoryFilter === "All" || product.category === categoryFilter;
-
-      const matchesStock =
-        stockFilter === "All" ||
-        (stockFilter === "In stock" && product.quantity > 10) ||
-        (stockFilter === "Low stock" &&
-          product.quantity > 0 &&
-          product.quantity <= 10) ||
-        (stockFilter === "Out of stock" && product.quantity === 0);
-
-      return matchesSearch && matchesCategory && matchesStock;
+      return matchesSearch;
     });
-  }, [products, search, categoryFilter, stockFilter]);
+  }, [realProducts, search]);
 
+console.log(filteredProducts)
   const openAddForm = () => {
     setEditingId(null);
     setForm(emptyForm);
@@ -173,16 +219,16 @@ export default function Products() {
     );
   };
 
-  const totalValue = products.reduce(
+  const totalValue = realProducts.reduce(
     (sum, product) => sum + product.price * product.quantity,
     0
   );
 
-  const lowStockCount = products.filter(
+  const lowStockCount = realProducts.filter(
     (product) => product.quantity > 0 && product.quantity <= 10
   ).length;
 
-  const outOfStockCount = products.filter(
+  const outOfStockCount = realProducts.filter(
     (product) => product.quantity === 0
   ).length;
 
@@ -207,7 +253,7 @@ export default function Products() {
           </div>
           <div>
             <span>Total Products</span>
-            <strong>{products.length}</strong>
+            <strong>{realProducts.length}</strong>
           </div>
         </article>
 
@@ -254,26 +300,39 @@ export default function Products() {
               <Search size={17} />
               <input
                 type="search"
-                placeholder="Search product or SKU..."
+                placeholder="Search product..."
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
               />
             </label>
 
+
             <label className="product-select">
-              <select
-                value={categoryFilter}
-                onChange={(event) => setCategoryFilter(event.target.value)}
-                aria-label="Filter by category"
-              >
-                {categories.map((category) => (
-                  <option key={category} value={category}>
-                    {category === "All" ? "All Categories" : category}
+              <label className="product-select">
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                >
+                  <option key="all-categories" value="All">
+                    All Categories
                   </option>
-                ))}
-              </select>
+
+                  {categories.map((category) => (
+                    <option
+                      key={category.id}
+                      value={String(category.id)}
+                    >
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+
+                <ChevronDown size={15} />
+              </label>
+
               <ChevronDown size={15} />
             </label>
+
 
             <label className="product-select">
               <select
@@ -296,7 +355,6 @@ export default function Products() {
             <thead>
               <tr>
                 <th>PRODUCT</th>
-                <th>SKU</th>
                 <th>CATEGORY</th>
                 <th>PRICE</th>
                 <th>QUANTITY</th>
@@ -316,11 +374,10 @@ export default function Products() {
                         <div className="product-mini-icon">
                           <Package size={18} />
                         </div>
-                        <strong>{product.name}</strong>
+                        <strong>{product.product}</strong>
                       </div>
                     </td>
-                    <td className="product-sku">{product.sku}</td>
-                    <td>{product.category}</td>
+                    <td>{product.category.name}</td>
                     <td className="product-price">
                       {formatCurrency(product.price)}
                     </td>
@@ -497,10 +554,6 @@ export default function Products() {
           </section>
         </div>
       )}
-
-      <p className="products-demo-note">
-        Demo data only — changes are held in browser memory and are not saved to your backend.
-      </p>
     </div>
   );
 }

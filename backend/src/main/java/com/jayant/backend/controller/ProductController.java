@@ -8,6 +8,7 @@ import com.jayant.backend.services.ProductService;
 import com.jayant.backend.services.StockMovementService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -15,6 +16,7 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("api/products")
+@CrossOrigin(origins = "http://localhost:5173")
 public class ProductController {
     private final ProductService productService;
     private final StockMovementService stockMovementService;
