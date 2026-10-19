@@ -1,0 +1,128 @@
+
+.top-navbar {
+  height: 76px;
+  min-height: 76px;
+  padding: 0 30px;
+  background: #ffffff;
+  border-bottom: 1px solid #e9edf3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  box-sizing: border-box;
+}
+
+.navbar-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 340px;
+  max-width: 55%;
+  padding: 10px 13px;
+  background: #f6f8fb;
+  border: 1px solid #e9edf3;
+  border-radius: 8px;
+  color: #8994a7;
+}
+
+.navbar-search input {
+  width: 100%;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: #273247;
+  font: inherit;
+  font-size: 13px;
+}
+
+.navbar-search input::placeholder {
+  color: #9aa4b4;
+}
+
+.navbar-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.notification-button {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border: 1px solid #e9edf3;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #5f6b7d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.notification-dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ef5350;
+  border: 1px solid white;
+}
+
+.navbar-divider {
+  height: 35px;
+  width: 1px;
+  background: #e8ebf1;
+}
+
+.navbar-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.user-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #e6edff;
+  color: #315bd4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.user-details strong,
+.user-details span {
+  display: block;
+}
+
+.user-details strong {
+  color: #263247;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.user-details span {
+  color: #8a94a5;
+  font-size: 11px;
+}
+
+@media (max-width: 600px) {
+  .top-navbar {
+    padding: 0 14px;
+  }
+
+  .navbar-right {
+    gap: 10px;
+  }
+
+  .user-details,
+  .navbar-divider {
+    display: none;
+  }
+}

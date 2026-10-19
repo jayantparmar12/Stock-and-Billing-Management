@@ -1,0 +1,127 @@
+
+.sidebar {
+  width: 250px;
+  min-width: 250px;
+  height: 100vh;
+  background: #172033;
+  color: #c3cada;
+  display: flex;
+  flex-direction: column;
+  padding: 24px 14px 16px;
+  box-sizing: border-box;
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 10px;
+  margin-bottom: 38px;
+}
+
+.brand-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 11px;
+  background: #3563e9;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.brand-text h2 {
+  color: #ffffff;
+  font-size: 19px;
+  margin: 0 0 4px;
+  font-weight: 650;
+}
+
+.brand-text span {
+  font-size: 11px;
+  color: #98a4ba;
+}
+
+.sidebar-section-label {
+  padding: 0 12px;
+  margin-bottom: 12px;
+  color: #7f8ba3;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.sidebar-link {
+  min-height: 45px;
+  padding: 0 13px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-radius: 8px;
+  color: #b6c0d2;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background 0.2s, color 0.2s;
+}
+
+.sidebar-link:hover {
+  background: #222e45;
+  color: #ffffff;
+}
+
+.sidebar-link.active {
+  background: #2c4c91;
+  color: #ffffff;
+}
+
+.sidebar-footer {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-top: auto;
+  padding: 16px 8px 4px;
+  border-top: 1px solid #303a4e;
+}
+
+.sidebar-footer-icon {
+  width: 35px;
+  height: 35px;
+  border-radius: 9px;
+  background: #303d55;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 700;
+}
+
+.sidebar-footer strong,
+.sidebar-footer span {
+  display: block;
+}
+
+.sidebar-footer strong {
+  color: #e5eaf2;
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+
+.sidebar-footer span {
+  color: #8d9ab0;
+  font-size: 10px;
+}
+
+@media (max-width: 760px) {
+  .sidebar {
+    width: 205px;
+    min-width: 205px;
+  }
+}
