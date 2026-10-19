@@ -2,7 +2,10 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import MainLayout from "./layouts/MainLayout/MainLayout";
 import "./styles/global.css";
-import Dashboard from "./pages/Dashboard/Dashboard";
+import Dashboard from "./pages/Dashboard/Dashboard.jsx";
+import Products from "./pages/Products/Products.jsx";
+import Categories from "./pages/Categories/Categories.jsx";
+import Customers from "./pages/Customers/Customers.jsx";
 
 function PagePlaceholder({ title }) {
   return (
@@ -24,15 +27,15 @@ export default function App() {
           />
           <Route
             path="/products"
-            element={<PagePlaceholder title="Products" />}
+            element={<Products />}
           />
           <Route
             path="/categories"
-            element={<PagePlaceholder title="Categories" />}
+            element={<Categories />}
           />
           <Route
             path="/customers"
-            element={<PagePlaceholder title="Customers" />}
+            element={<Customers />}
           />
           <Route
             path="/billing"
