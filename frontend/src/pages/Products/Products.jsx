@@ -12,7 +12,6 @@ import {
 import "./Products.css";
 
 import api from '../../services/api';
-import axios from "axios";
 
 
 const initialProducts = [
@@ -124,6 +123,7 @@ export default function Products() {
   }, [realProducts, search]);
 
 console.log(filteredProducts)
+
   const openAddForm = () => {
     setEditingId(null);
     setForm(emptyForm);
@@ -148,11 +148,10 @@ console.log(filteredProducts)
     event.preventDefault();
 
     const name = form.name.trim();
-    const sku = form.sku.trim();
     const price = Number(form.price);
     const quantity = Number(form.quantity);
 
-    if (!name || !sku || form.price === "" || form.quantity === "") {
+    if (!name || form.price === "" || form.quantity === "") {
       setFormError("Please fill in all fields.");
       return;
     }
@@ -167,20 +166,20 @@ console.log(filteredProducts)
       return;
     }
 
-    const duplicateSku = products.some(
+    const duplicateProduct = realProducts.some(
       (product) =>
-        product.sku.toLowerCase() === sku.toLowerCase() &&
-        product.id !== editingId
+        product.product.toLowerCase() === name.toLowerCase() &&
+        product.id !== editingId && 
+        product.category.name.toLowerCase() === form.category
     );
 
-    if (duplicateSku) {
-      setFormError("This SKU already exists.");
+    if (duplicateProduct) {
+      setFormError("This Product already exists.");
       return;
     }
 
     const productData = {
-      name,
-      sku,
+      product:name,
       category: form.category,
       price,
       quantity,
@@ -195,7 +194,7 @@ console.log(filteredProducts)
         )
       );
     } else {
-      setProducts((current) => [
+      setRealProducts((current) => [
         ...current,
         { id: Date.now(), ...productData },
       ]);
@@ -476,18 +475,6 @@ console.log(filteredProducts)
                 </label>
 
                 <label>
-                  SKU
-                  <input
-                    value={form.sku}
-                    onChange={(event) =>
-                      setForm({ ...form, sku: event.target.value })
-                    }
-                    placeholder="e.g. PRD-1007"
-                    required
-                  />
-                </label>
-
-                <label>
                   Category
                   <select
                     value={form.category}
@@ -495,9 +482,9 @@ console.log(filteredProducts)
                       setForm({ ...form, category: event.target.value })
                     }
                   >
-                    <option>Accessories</option>
-                    <option>Electronics</option>
-                    <option>Office Supplies</option>
+                    {categories.map((category)=>(
+                      <option key={category.id}>{category.name}</option>
+                    ))}
                   </select>
                 </label>
 
@@ -547,7 +534,7 @@ console.log(filteredProducts)
                   Cancel
                 </button>
                 <button type="submit" className="primary-button">
-                  {editingId !== null ? "Save Changes" : "Create Product"}
+                  {editingId !== null ? "Save Changes" : "Add Product"}
                 </button>
               </div>
             </form>
