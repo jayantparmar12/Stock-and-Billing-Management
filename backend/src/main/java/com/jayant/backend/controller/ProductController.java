@@ -43,7 +43,7 @@ public class ProductController {
     }
 
     @PutMapping
-    public ApiResponse<Product> editProduct(@Valid @RequestBody ProductRequest product) {
+    public ApiResponse<ProductResponse> editProduct(@Valid @RequestBody ProductRequest product) {
         return productService.editProduct(product);
     }
 

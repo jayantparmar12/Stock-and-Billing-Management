@@ -74,7 +74,7 @@ public class ProductService {
         }
     }
 
-    public ApiResponse<Product> editProduct(ProductRequest productRequest) {
+    public ApiResponse<ProductResponse> editProduct(ProductRequest productRequest) {
 
         Product product = productRepo.findById(productRequest.getId())
                 .orElseThrow(()-> new ResponseStatusException(
@@ -91,7 +91,7 @@ public class ProductService {
                         ));
         product.setCategory(category);
         product = productRepo.save(product);
-        return new ApiResponse<>(true, "Product edited successfully", product);
+        return new ApiResponse<>(true, "Product edited successfully", productToProductResponse(product));
 
     }
 

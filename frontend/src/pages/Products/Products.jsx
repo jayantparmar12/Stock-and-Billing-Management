@@ -130,20 +130,27 @@ export default function Products() {
     setShowForm(true);
   };
 
-  const openEditForm = (product) => {
-    setEditingId(product.id);
-    setForm({
-      name: product.name,
-      sku: product.sku,
-      category: product.category,
-      price: String(product.price),
-      quantity: String(product.quantity),
-    });
-    setFormError("");
-    setShowForm(true);
-  };
+ const openEditForm = (product) => {
+  setEditingId(product.id);
 
-  const handleSubmit = (event) => {
+  const selectedCategory = categories.find(
+    (category) => category.name === product.category?.name
+  );
+
+  setForm({
+    name: product.name,
+    category: selectedCategory
+      ? String(selectedCategory.id)
+      : '',
+    price: String(product.price),
+    quantity: String(product.quantity),
+  });
+
+  setFormError('');
+  setShowForm(true);
+};
+
+  const handleSubmit = async (event) => {
     event.preventDefault();
 
     const name = form.name.trim();
@@ -185,19 +192,41 @@ export default function Products() {
     };
 
     if (editingId !== null) {
-      setProducts((current) =>
-        current.map((product) =>
-          product.id === editingId
-            ? { ...product, ...productData }
-            : product
+      const payload = {
+        id: editingId,
+        name: form.name,
+        category: Number(form.category),
+        price: Number(form.price),
+        quantity: Number(form.quantity),
+      };
+      try {
+
+        const response = await api.put('/api/products', payload);
+
+
+        if (response.data.success) {
+          const updatedProduct = response.data.data;
+
+          setRealProducts((current) =>
+            current.map((item) =>
+              item.id === editingId ? updatedProduct : item
+            )
+          );
+
+          setEditingId(null);
+          setShowForm(false);
+        }
+      } catch (err) {
+        setError(
+          err.response.data.message
         )
-      );
+      }
     } else {
       const addProducts = async () => {
         try {
           const response = await api.post('/api/products', productData)
           if (response.data.success) {
-            setRealProducts((current)=>[
+            setRealProducts((current) => [
               ...current,
               response.data.data
             ])
@@ -208,7 +237,7 @@ export default function Products() {
         }
         catch (err) {
           setError(
-            err.response.data.message ||"something went wrong"
+            err.response.data.message || "something went wrong"
           )
         }
       }
@@ -222,16 +251,33 @@ export default function Products() {
     setFormError("");
   };
 
-  const handleDelete = (product) => {
+  const handleDelete = async (id) => {
     const confirmed = window.confirm(
-      `Delete "${product.name}" from this demo list?`
+      'Are you sure you want to delete this product?'
     );
 
     if (!confirmed) return;
 
-    setProducts((current) =>
-      current.filter((item) => item.id !== product.id)
-    );
+    try {
+      setError('');
+
+      const response = await api.delete(`/api/products/${id}`);
+
+      if (response.data.success) {
+        setRealProducts((current) =>
+          current.filter((product) => product.id !== id)
+        );
+      } else {
+        setError(
+          err.response.data.message || "Unable to delete product"
+        )
+      }
+    } catch (err) {
+      setError(
+        err.response?.data?.message ||
+        'Unable to delete product'
+      );
+    }
   };
 
   const totalValue = realProducts.reduce(
@@ -423,9 +469,9 @@ export default function Products() {
                         <button
                           type="button"
                           className="action-button delete"
-                          title="Delete demo product"
+                          title="Delete product"
                           aria-label={`Delete ${product.name}`}
-                          onClick={() => handleDelete(product)}
+                          onClick={() => handleDelete(product.id)}
                         >
                           <Trash2 size={16} />
                         </button>
