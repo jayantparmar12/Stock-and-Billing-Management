@@ -529,3 +529,45 @@
     line-height: 1.6;
   }
 }
+
+
+.error-message {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  padding: 14px 18px;
+  margin: 16px 0;
+
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  border-left: 4px solid #dc2626;
+  border-radius: 8px;
+
+  color: #991b1b;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.error-message strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.error-message p {
+  margin: 0;
+  color: #b91c1c;
+}
+
+
+@media (max-width: 600px) {
+  .error-message {
+    padding: 12px;
+    margin: 12px 0;
+    font-size: 13px;
+  }
+
+  .error-message strong {
+    font-size: 14px;
+  }
+}

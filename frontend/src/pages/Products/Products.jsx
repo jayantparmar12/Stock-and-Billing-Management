@@ -25,8 +25,7 @@ const initialProducts = [
 
 const emptyForm = {
   name: "",
-  sku: "",
-  category: "Accessories",
+  category: "",
   price: "",
   quantity: "",
 };
@@ -59,21 +58,21 @@ export default function Products() {
 
   const [realProducts, setRealProducts] = useState([]);
   const [categories, setCategoreis] = useState([])
-  useEffect(()=>{
+  useEffect(() => {
     const featchProducts = async () => {
-      try{
+      try {
         setLoading(true)
         setError(false)
 
         const response = await api.get('/api/products');
-        if(response.data.success) {
+        if (response.data.success) {
           setRealProducts(response.data.data)
         }
         else {
           setError(response.data.message || 'Unable to laod products')
         }
       }
-      catch(err){
+      catch (err) {
         setError(
           err.response.data.message || 'Unabel to connect with backend'
         )
@@ -83,32 +82,32 @@ export default function Products() {
       }
     }
     featchProducts()
-  },[])
+  }, [])
 
-  useEffect(()=>{
-    const featchCategory = async () =>{
-      try{
+  useEffect(() => {
+    const featchCategory = async () => {
+      try {
         setLoading(true)
         setError(false)
         const resposne = await api.get('/api/categories')
-        if(resposne.data.success) {
+        if (resposne.data.success) {
           setCategoreis(resposne.data.data)
         }
-      } catch(err){
-          setFormError(
-            err.response.data.message || 'Unable to connect with backend'
-          )
+      } catch (err) {
+        setError(
+          err.response.data.message || 'Unable to connect with backend'
+        )
       }
-      finally{
+      finally {
         setLoading(false)
       }
     }
     featchCategory()
-  },[])
-  
+  }, [])
+
   console.log(realProducts)
   console.log(categories)
-  
+
 
   const filteredProducts = useMemo(() => {
     return realProducts.filter((product) => {
@@ -122,7 +121,7 @@ export default function Products() {
     });
   }, [realProducts, search]);
 
-console.log(filteredProducts)
+  console.log(filteredProducts)
 
   const openAddForm = () => {
     setEditingId(null);
@@ -151,7 +150,7 @@ console.log(filteredProducts)
     const price = Number(form.price);
     const quantity = Number(form.quantity);
 
-    if (!name || form.price === "" || form.quantity === "") {
+    if (!name || form.price === "" || form.quantity === "" || form.category === "") {
       setFormError("Please fill in all fields.");
       return;
     }
@@ -168,9 +167,9 @@ console.log(filteredProducts)
 
     const duplicateProduct = realProducts.some(
       (product) =>
-        product.product.toLowerCase() === name.toLowerCase() &&
-        product.id !== editingId && 
-        product.category.name.toLowerCase() === form.category
+        product.name.toLowerCase() === name.toLowerCase() &&
+        product.id !== editingId &&
+        product.category.toLowerCase() === form.category
     );
 
     if (duplicateProduct) {
@@ -179,7 +178,7 @@ console.log(filteredProducts)
     }
 
     const productData = {
-      product:name,
+      name: name,
       category: form.category,
       price,
       quantity,
@@ -194,10 +193,27 @@ console.log(filteredProducts)
         )
       );
     } else {
-      setRealProducts((current) => [
-        ...current,
-        { id: Date.now(), ...productData },
-      ]);
+      const addProducts = async () => {
+        try {
+          const response = await api.post('/api/products', productData)
+          if (response.data.success) {
+            setRealProducts((current)=>[
+              ...current,
+              response.data.data
+            ])
+          }
+          else {
+            setError(response.data.message)
+          }
+        }
+        catch (err) {
+          setError(
+            err.response.data.message ||"something went wrong"
+          )
+        }
+      }
+      addProducts()
+      console.log(productData)
     }
 
     setShowForm(false);
@@ -236,6 +252,12 @@ console.log(filteredProducts)
       <div className="products-heading">
         <div>
           <h1>Products</h1>
+          {error && (
+            <div className="error-message" role="alert">
+              <strong>{error}</strong>
+              <p>{error}</p>
+            </div>
+          )}
           <p>Manage your product catalogue and inventory levels.</p>
         </div>
 
@@ -478,12 +500,23 @@ console.log(filteredProducts)
                   Category
                   <select
                     value={form.category}
-                    onChange={(event) =>
-                      setForm({ ...form, category: event.target.value })
-                    }
+                    onChange={(event) => {
+                      const categoryId = event.target.value;
+
+                      setForm({
+                        ...form,
+                        category: categoryId,
+                      });
+
+                      console.log("Selected category ID:", categoryId);
+                    }}
                   >
-                    {categories.map((category)=>(
-                      <option key={category.id}>{category.name}</option>
+                    <option value="">Select Category</option>
+
+                    {categories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
                     ))}
                   </select>
                 </label>

@@ -24,7 +24,7 @@ public class ProductService {
     private final StockMovementService stockMovementService;
     private final CategoryRepo categoryRepo;
 
-    public ApiResponse<Product> addProduct(ProductRequest productRequest) {
+    public ApiResponse<ProductResponse> addProduct(ProductRequest productRequest) {
         Category category = categoryRepo.findById(productRequest.getCategory())
                 .orElseThrow(()->
                         new ResponseStatusException(
@@ -36,17 +36,17 @@ public class ProductService {
         product.setQuantity(productRequest.getQuantity());
         product.setCategory(category);
         product.setPrice(productRequest.getPrice());
-        product.setProduct(productRequest.getProduct());
+        product.setProduct(productRequest.getName());
         product = productRepo.save(product);
 
-        return new ApiResponse<>(true, "Product created", product);
+        return new ApiResponse<>(true, "Product created", productToProductResponse(product));
     }
 
     public ApiResponse<List<ProductResponse>> getProducts() {
         List<Product> products = productRepo.findAll();
         List<ProductResponse> productResponses = new ArrayList<>();
         for (Product product : products) {
-            productResponses.add(productToProductResposne(product));
+            productResponses.add(productToProductResponse(product));
         }
         return new ApiResponse<>(true, "List of products", productResponses);
     }
@@ -82,7 +82,7 @@ public class ProductService {
                         "Product not found with id : "+productRequest.getId()
                 ));
         product.setQuantity(productRequest.getQuantity());
-        product.setProduct(productRequest.getProduct());
+        product.setProduct(productRequest.getName());
         product.setPrice(productRequest.getPrice());
         Category category = categoryRepo.findById(productRequest.getCategory())
                         .orElseThrow(()-> new ResponseStatusException(
@@ -148,7 +148,7 @@ public class ProductService {
         return new ApiResponse<>(true, "Low quantity products", productRepo.findByQuantityLessThan(threshold));
     }
 
-    private ProductResponse productToProductResposne(Product product){
+    private ProductResponse productToProductResponse(Product product){
         return ProductResponse.builder()
                 .name(product.getProduct())
                 .category(product.getCategory().getName())

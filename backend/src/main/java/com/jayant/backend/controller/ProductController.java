@@ -33,7 +33,7 @@ public class ProductController {
     }
 
     @PostMapping
-    public ApiResponse<Product> addProduct(@Valid @RequestBody ProductRequest product) {
+    public ApiResponse<ProductResponse> addProduct(@Valid @RequestBody ProductRequest product) {
         return productService.addProduct(product);
     }
 

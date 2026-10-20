@@ -16,7 +16,7 @@ public class ProductRequest {
 
     @Column(unique = true)
     @NotBlank(message = "product name is required")
-    private String product;
+    private String name;
 
     @PositiveOrZero(message = "product quantity must be greater than zero")
     private Integer quantity;
@@ -24,5 +24,5 @@ public class ProductRequest {
     @Positive(message = "product price must be greater than zero")
     private Double price;
     @NotNull(message = "Category is Required")
-    private Integer category;
+    private Integer  category;
 }
