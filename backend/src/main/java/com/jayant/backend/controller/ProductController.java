@@ -2,6 +2,7 @@ package com.jayant.backend.controller;
 
 import com.jayant.backend.DTO.ApiResponse;
 import com.jayant.backend.DTO.ProductRequest;
+import com.jayant.backend.DTO.ProductResponse;
 import com.jayant.backend.Entity.Product;
 import com.jayant.backend.Entity.StockMovement;
 import com.jayant.backend.services.ProductService;
@@ -22,7 +23,7 @@ public class ProductController {
     private final StockMovementService stockMovementService;
 
     @GetMapping
-    public ApiResponse<List<Product>> getProducts(){
+    public ApiResponse<List<ProductResponse>> getProducts(){
         return productService.getProducts();
     }
 

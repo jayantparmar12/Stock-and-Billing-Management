@@ -373,10 +373,10 @@ console.log(filteredProducts)
                         <div className="product-mini-icon">
                           <Package size={18} />
                         </div>
-                        <strong>{product.product}</strong>
+                        <strong>{product.name}</strong>
                       </div>
                     </td>
-                    <td>{product.category.name}</td>
+                    <td>{product.category}</td>
                     <td className="product-price">
                       {formatCurrency(product.price)}
                     </td>

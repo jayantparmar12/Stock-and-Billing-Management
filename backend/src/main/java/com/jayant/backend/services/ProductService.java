@@ -2,6 +2,7 @@ package com.jayant.backend.services;
 
 import com.jayant.backend.DTO.ApiResponse;
 import com.jayant.backend.DTO.ProductRequest;
+import com.jayant.backend.DTO.ProductResponse;
 import com.jayant.backend.Entity.Category;
 import com.jayant.backend.Entity.MovementType;
 import com.jayant.backend.Entity.Product;
@@ -13,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -40,9 +42,13 @@ public class ProductService {
         return new ApiResponse<>(true, "Product created", product);
     }
 
-    public ApiResponse<List<Product>> getProducts() {
+    public ApiResponse<List<ProductResponse>> getProducts() {
         List<Product> products = productRepo.findAll();
-        return new ApiResponse<>(true, "List of products", products);
+        List<ProductResponse> productResponses = new ArrayList<>();
+        for (Product product : products) {
+            productResponses.add(productToProductResposne(product));
+        }
+        return new ApiResponse<>(true, "List of products", productResponses);
     }
 
     public ApiResponse<Product> getProductById(Integer id) {
@@ -140,5 +146,15 @@ public class ProductService {
 
     public ApiResponse<List<Product>> getLowQuantityProduct(Integer threshold) {
         return new ApiResponse<>(true, "Low quantity products", productRepo.findByQuantityLessThan(threshold));
+    }
+
+    private ProductResponse productToProductResposne(Product product){
+        return ProductResponse.builder()
+                .name(product.getProduct())
+                .category(product.getCategory().getName())
+                .id(product.getId())
+                .quantity(product.getQuantity())
+                .price(product.getPrice())
+                .build();
     }
 }
