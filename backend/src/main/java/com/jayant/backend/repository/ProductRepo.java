@@ -11,4 +11,5 @@ import java.util.List;
 public interface ProductRepo extends JpaRepository<Product, Integer> {
     long countByQuantityLessThan(Integer quantity);
     List<Product> findByQuantityLessThan(Integer quantity);
+    long countByCategoryId(Integer id);
 }

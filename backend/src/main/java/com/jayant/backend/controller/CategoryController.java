@@ -1,6 +1,7 @@
 package com.jayant.backend.controller;
 
 import com.jayant.backend.DTO.ApiResponse;
+import com.jayant.backend.DTO.CategoryResponse;
 import com.jayant.backend.Entity.Category;
 import com.jayant.backend.services.CategoryService;
 import jakarta.validation.Valid;
@@ -18,7 +19,7 @@ public class CategoryController {
     private final CategoryService categoryService;
 
     @GetMapping
-    public ApiResponse<List<Category>> getAllCategories() {
+    public ApiResponse<List<CategoryResponse>> getAllCategories() {
         return categoryService.getAllCategory();
     }
 
@@ -28,12 +29,12 @@ public class CategoryController {
     }
 
     @PostMapping
-    public ApiResponse<Category> addCategory(@Valid @RequestBody Category category) {
+    public ApiResponse<CategoryResponse> addCategory(@Valid @RequestBody Category category) {
         return categoryService.addCategory(category);
     }
 
     @PutMapping
-    public ApiResponse<Category> editCategory(@Valid @RequestBody Category category) {
+    public ApiResponse<CategoryResponse> editCategory(@Valid @RequestBody Category category) {
         return categoryService.editCategory(category);
     }
 

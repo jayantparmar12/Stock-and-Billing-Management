@@ -1,5 +1,5 @@
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Search,
   Plus,
@@ -10,6 +10,7 @@ import {
   Package,
 } from "lucide-react";
 import "./Categories.css";
+import api from "../../services/api";
 
 const initialCategories = [
   {
@@ -50,12 +51,34 @@ const emptyForm = {
 };
 
 export default function Categories() {
-  const [categories, setCategories] = useState(initialCategories);
+  const [categories, setCategories] = useState([]);
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState("");
+  const [error, setError] = useState(false);
+
+  const fetchCategories = useCallback(async () => {
+    try {
+      const response = await api.get('/api/categories')
+      if (response.data.success) {
+        setCategories(response.data.data)
+      }
+      else {
+        setError(response.data.message)
+      }
+    }
+    catch (err) {
+      setError(err.response.data.message)
+    }
+  })
+
+  useEffect(() => {
+    fetchCategories()
+  }, [])
+
+
 
   const filteredCategories = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -84,7 +107,7 @@ export default function Categories() {
     setShowForm(true);
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
 
     const name = form.name.trim();
@@ -107,23 +130,46 @@ export default function Categories() {
     }
 
     if (editingId !== null) {
-      setCategories((current) =>
-        current.map((category) =>
-          category.id === editingId
-            ? { ...category, name, description }
-            : category
-        )
-      );
-    } else {
-      setCategories((current) => [
-        ...current,
-        {
-          id: Date.now(),
+      try {
+        const data = {
+          id: editingId,
           name,
-          description,
-          productCount: 0,
-        },
-      ]);
+          description
+        }
+        const response = await api.put('/api/categories', data)
+        if (response.data.success) {
+          setCategories((prev) =>
+            prev.map((category) =>
+              category.id == editingId
+                ? { ...category, ...response.data.data } : category)
+          )
+        }
+        else {
+          setError(response.data.message)
+        }
+      }
+      catch (err) {
+        setError(
+          err.response.data.message
+        )
+      }
+    } else {
+      try {
+        const data = {
+          name,
+          description
+        }
+        const response = await api.post('/api/categories', data)
+        if (response.data.success) {
+          setCategories((prev) => [...prev, response.data.data])
+        }
+        else {
+          setError(response.data.message)
+        }
+      }
+      catch (err) {
+        setError(err.response.data.message)
+      }
     }
 
     setShowForm(false);
@@ -132,10 +178,10 @@ export default function Categories() {
     setFormError("");
   };
 
-  const handleDelete = (category) => {
-    if (category.productCount > 0) {
+  const handleDelete = async (category) => {
+    if (category.productsVariety > 0) {
       window.alert(
-        "This demo category has products assigned to it. Remove those products from the category before deleting it."
+        "This category has products assigned to it. Remove those products from the category before deleting it."
       );
       return;
     }
@@ -146,9 +192,23 @@ export default function Categories() {
 
     if (!confirmed) return;
 
-    setCategories((current) =>
-      current.filter((item) => item.id !== category.id)
-    );
+    try {
+      const response = await api.delete(`/api/categories/${category.id}`)
+      if (response.data.success) {
+        setCategories((current) =>
+          current.filter((item) => item.id !== category.id)
+        );
+      }
+      else {
+        setError(response.data.message)
+      }
+    }
+    catch (err) {
+      setError(
+        err.response.data.message
+      )
+    }
+
   };
 
   return (
@@ -181,10 +241,10 @@ export default function Categories() {
             <Package size={21} />
           </div>
           <div>
-            <span>Products Assigned</span>
+            <span>Total Products Variety</span>
             <strong>
               {categories.reduce(
-                (total, category) => total + category.productCount,
+                (total, category) => total + category.productsVariety,
                 0
               )}
             </strong>
@@ -198,7 +258,7 @@ export default function Categories() {
           <div>
             <span>Empty Categories</span>
             <strong>
-              {categories.filter((category) => category.productCount === 0).length}
+              {categories.filter((category) => category.productsVariety === 0).length}
             </strong>
           </div>
         </article>
@@ -215,7 +275,7 @@ export default function Categories() {
             <Search size={17} />
             <input
               type="search"
-              placeholder="Search categories..."
+              placeholder="Search categories, description..."
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
@@ -228,7 +288,7 @@ export default function Categories() {
               <tr>
                 <th>CATEGORY</th>
                 <th>DESCRIPTION</th>
-                <th>PRODUCTS</th>
+                <th>PRODUCTS Variety</th>
                 <th>STATUS</th>
                 <th>ACTIONS</th>
               </tr>
@@ -252,18 +312,17 @@ export default function Categories() {
 
                   <td>
                     <span className="category-product-count">
-                      {category.productCount} products
+                      {category.productsVariety} products veriety
                     </span>
                   </td>
 
                   <td>
                     <span
-                      className={`category-status ${
-                        category.productCount > 0 ? "active" : "empty"
-                      }`}
+                      className={`category-status ${category.productsVariety > 0 ? "active" : "empty"
+                        }`}
                     >
                       <span className="category-status-dot" />
-                      {category.productCount > 0 ? "Active" : "Empty"}
+                      {category.productsVariety > 0 ? "Active" : "Empty"}
                     </span>
                   </td>
 
@@ -369,6 +428,7 @@ export default function Categories() {
                     placeholder="Describe this category..."
                     rows={4}
                     maxLength={500}
+                    required
                   />
                 </label>
               </div>
@@ -397,9 +457,7 @@ export default function Categories() {
         </div>
       )}
 
-      <p className="categories-demo-note">
-        Demo data only — changes are not saved to your backend yet.
-      </p>
+
     </div>
   );
 }

@@ -82,7 +82,7 @@ function normalizeStockMovement(entry, index) {
     entry.previousQuantity ??
     entry.beforeQuantity ??
     entry.oldQuantity ??
-    entry.beforeStock ??
+    entry.previousStock ??
     entry.oldStock ??
     entry.initialStock;
   const after =
@@ -1055,6 +1055,7 @@ export default function Products() {
                             <th>QTY</th>
                             <th>STOCK CHANGE</th>
                             <th>NOTE</th>
+                            <th>Date</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1063,7 +1064,7 @@ export default function Products() {
                               movement.type.includes("IN") ||
                               (movement.after !== undefined &&
                                 movement.before !== undefined &&
-                                movement.after > movement.before);
+                                movement.after > movement.previous_stock);
 
                             return (
                               <tr key={movement.id}>
@@ -1089,6 +1090,7 @@ export default function Products() {
                                     : "—"}
                                 </td>
                                 <td>{movement.note}</td>
+                                <td>{new Date(movement.timestamp).toLocaleString()}</td>
                               </tr>
                             );
                           })}
