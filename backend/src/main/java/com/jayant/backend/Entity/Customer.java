@@ -18,7 +18,7 @@ public class Customer {
     private String name;
 
     @Column(nullable = false)
-    @NotBlank(message = "Customer phone is required")
+    @NotBlank(message = "Customer phone number is required")
     private String phone;
 
     @Email(message = "Invalid email format")

@@ -8,6 +8,7 @@ import {
   Trash2,
   X,
   Package,
+  AlertTriangle
 } from "lucide-react";
 import "./Categories.css";
 import api from "../../services/api";
@@ -217,6 +218,7 @@ export default function Categories() {
         <div>
           <h1>Categories</h1>
           <p>Organize your products into manageable groups.</p>
+
         </div>
 
         <button className="primary-button" onClick={openAddForm}>
@@ -224,6 +226,25 @@ export default function Categories() {
           Add Category
         </button>
       </div>
+      {error && (
+        <div className="error-message" role="alert">
+          <div className="error-message-content">
+            <AlertTriangle size={18} />
+            <div>
+              <strong>Action failed</strong>
+              <p>{error}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="error-dismiss-btn"
+            onClick={() => setError("")}
+            aria-label="Dismiss error"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       <section className="category-summary-grid">
         <article className="category-summary-card">

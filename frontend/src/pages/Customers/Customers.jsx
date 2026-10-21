@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Search,
   Plus,
@@ -13,6 +13,7 @@ import {
   Phone,
 } from 'lucide-react';
 import './Customers.css';
+import api from '../../services/api'
 
 const initialCustomers = [
   {
@@ -58,11 +59,34 @@ function Customers() {
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [error, setError] = useState(false)
+
+  const fetchCustomers = async () => {
+    try {
+      const response = await api.get('/api/customers')
+      if (response.data.success) {
+        console.log(response)
+        setCustomers(response.data.data)
+      }
+      else {
+        setError(response.data.message)
+      }
+    }
+    catch (err) {
+      setError(
+        err.response.data.message
+      )
+    }
+  }
+
+  useEffect(() => {
+    fetchCustomers()
+  }, [])
 
   const filteredCustomers = customers.filter((customer) =>
     `${customer.name} ${customer.email} ${customer.phone} ${customer.address}`
       .toLowerCase()
-      .includes(search.toLowerCase())
+      .includes(search.trim().toLowerCase())
   );
 
   const openAddModal = () => {
@@ -82,29 +106,51 @@ function Customers() {
     setShowModal(true);
   };
 
-  const handleChange = (event) => {
+  const handleChange = async (event) => {
     const { name, value } = event.target;
     setForm((previous) => ({ ...previous, [name]: value }));
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
 
     if (editingId !== null) {
-      setCustomers((previous) =>
-        previous.map((customer) =>
-          customer.id === editingId
-            ? { ...customer, ...form }
-            : customer
+      try {
+        const response = await api.put(`/api/customers/${editingId}`, form)
+        if (response.data.success) {
+          setCustomers((prev) =>
+            prev.map(customer => customer.id == editingId ? response.data.data : customer)
+          )
+        }
+        else{
+          setError(
+            response.data.message
+          )
+        }
+      }
+      catch (err) {
+        setError(
+          err.response.data.message
         )
-      );
+      }
     } else {
-      const newCustomer = {
-        id: Date.now(),
-        ...form,
-      };
-
-      setCustomers((previous) => [newCustomer, ...previous]);
+      try {
+        const newCustomer = {
+          ...form
+        };
+        const response = await api.post('/api/customers', newCustomer)
+        if (response.data.success) {
+          setCustomers((prev) => [...prev, response.data.data])
+        }
+        else {
+          setError(response.data.message)
+        }
+      }
+      catch (err) {
+        setError(
+          err.response.data.message
+        )
+      }
     }
 
     setShowModal(false);
@@ -112,15 +158,30 @@ function Customers() {
     setEditingId(null);
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     const confirmed = window.confirm(
       'Are you sure you want to delete this customer?'
     );
 
     if (confirmed) {
-      setCustomers((previous) =>
-        previous.filter((customer) => customer.id !== id)
-      );
+      try{
+        const response = await api.delete(`/api/customers/${id}`)
+        if(response.data.success){
+          setCustomers((prev)=>
+            prev.filter((customer)=> customer.id !== id)
+          )
+        }
+        else{
+          setError(
+            response.data.message
+          )
+        }
+      }
+      catch(err){
+        setError(
+          err.response.data.message
+        )
+      }
     }
   };
 
@@ -173,7 +234,7 @@ function Customers() {
             <Search size={18} />
             <input
               type="text"
-              placeholder="Search customers..."
+              placeholder="Search customers, contact, address..."
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
@@ -329,7 +390,7 @@ function Customers() {
               </div>
 
               <div className="customer-form-group">
-                <label htmlFor="customer-phone">Phone Number</label>
+                <label htmlFor="customer-phone">Phone Number *</label>
                 <input
                   id="customer-phone"
                   name="phone"
@@ -337,6 +398,7 @@ function Customers() {
                   value={form.phone}
                   onChange={handleChange}
                   placeholder="Enter phone number"
+                  required
                 />
               </div>
 
