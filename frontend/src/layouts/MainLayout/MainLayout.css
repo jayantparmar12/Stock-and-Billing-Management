@@ -2,24 +2,55 @@
 .app-layout {
   display: flex;
   width: 100%;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   background: #f6f8fb;
 }
 
 .app-main {
   flex: 1;
   min-width: 0;
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .app-content {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   padding: 28px 30px;
-  overflow-x: auto;
   box-sizing: border-box;
+
+  /* Scrolling */
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+  overscroll-behavior-y: contain;
+
+  /* Firefox scrollbar */
+  scrollbar-width: thin;
+  scrollbar-color: #b8c4d4 transparent;
+}
+
+/* Chrome, Edge and Safari */
+.app-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.app-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.app-content::-webkit-scrollbar-thumb {
+  background: #c5cfdd;
+  border-radius: 10px;
+  border: 2px solid #f6f8fb;
+}
+
+.app-content::-webkit-scrollbar-thumb:hover {
+  background: #8999af;
 }
 
 @media (max-width: 760px) {

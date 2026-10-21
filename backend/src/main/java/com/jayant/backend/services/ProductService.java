@@ -51,14 +51,14 @@ public class ProductService {
         return new ApiResponse<>(true, "List of products", productResponses);
     }
 
-    public ApiResponse<Product> getProductById(Integer id) {
+    public ApiResponse<ProductResponse> getProductById(Integer id) {
             Product product = productRepo.findById(id)
                     .orElseThrow(()->new ResponseStatusException(
                             HttpStatus.NOT_FOUND,
                             "Product Not Found with id : "+id
                     )
             );
-            return new ApiResponse<>(true, "Product by id", product);
+            return new ApiResponse<>(true, "Product by id", productToProductResponse(product));
     }
 
     public ApiResponse<Void> deleteProduct(Integer id) {
