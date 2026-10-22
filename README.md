@@ -127,7 +127,7 @@ Install the following tools before running the project:
 ### 1. Clone the Repository
 
 ```bash
-git clone <YOUR_GITHUB_REPOSITORY_URL>
+git clone [<YOUR_GITHUB_REPOSITORY_URL>](https://github.com/jayantparmar12/Stock-and-Billing-Management.git)
 cd "Inventory and Billing Management"
 ```
 
