@@ -3,6 +3,7 @@ package com.jayant.backend.Entity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 
 @Entity
@@ -19,6 +20,7 @@ public class Customer {
 
     @Column(nullable = false)
     @NotBlank(message = "Customer phone number is required")
+    @Pattern(regexp = "^[0-9]{10}$", message = "Please enter exactly 10 digits phone number")
     private String phone;
 
     @Email(message = "Invalid email format")

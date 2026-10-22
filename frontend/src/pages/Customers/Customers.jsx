@@ -11,6 +11,7 @@ import {
   MapPin,
   Mail,
   Phone,
+  AlertTriangle
 } from 'lucide-react';
 import './Customers.css';
 import api from '../../services/api'
@@ -60,6 +61,7 @@ function Customers() {
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState(false)
+  const [formError, setFormError] = useState('')
 
   const fetchCustomers = async () => {
     try {
@@ -113,6 +115,13 @@ function Customers() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+
+    const value = form.phone
+
+    if(!/^\d{0,10}$/.test(value)){
+        setFormError("Please enter 10-digit valid phone number")
+        return;
+      }
 
     if (editingId !== null) {
       try {
@@ -198,6 +207,25 @@ function Customers() {
           Add Customer
         </button>
       </div>
+      {error && (
+        <div className="error-message" role="alert">
+          <div className="error-message-content">
+            <AlertTriangle size={18} />
+            <div>
+              <strong>Action failed</strong>
+              <p>{error}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="error-dismiss-btn"
+            onClick={() => setError("")}
+            aria-label="Dismiss error"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       <div className="customer-stats">
         <div className="customer-stat-card">
@@ -413,6 +441,12 @@ function Customers() {
                   rows="3"
                 />
               </div>
+
+               {formError && (
+                <p className="product-form-error" role="alert">
+                  {formError}
+                </p>
+              )}
 
               <div className="customer-modal-actions">
                 <button
