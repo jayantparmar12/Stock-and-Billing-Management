@@ -1,6 +1,6 @@
-
 .payments-page {
-  padding: 28px;
+  max-width: 1600px;
+  margin: 0 auto;
   color: #202938;
 }
 
@@ -8,31 +8,108 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 25px;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
 }
 
 .payments-heading h1 {
-  margin: 0 0 7px;
-  font-size: 27px;
+  margin: 0 0 6px;
+  font-size: 25px;
   letter-spacing: -0.5px;
 }
 
 .payments-heading p {
   margin: 0;
   color: #7b8494;
-  font-size: 14px;
+  font-size: 13px;
 }
 
-.payments-heading-icon {
+.payments-heading-actions {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-  border: 1px solid #e2e9fa;
-  border-radius: 11px;
-  background: #edf2ff;
-  color: #3563e9;
+  gap: 10px;
+}
+
+.payments-refresh-btn,
+.payments-record-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 41px;
+  padding: 0 15px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.payments-refresh-btn {
+  border: 1px solid #dfe5ed;
+  background: #fff;
+  color: #475467;
+}
+
+.payments-refresh-btn:hover:not(:disabled) {
+  background: #f8fafc;
+}
+
+.payments-record-btn {
+  border: 1px solid #3563e9;
+  background: #3563e9;
+  color: #fff;
+}
+
+.payments-record-btn:hover {
+  background: #244fc9;
+}
+
+.spin-icon {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.payments-error-banner,
+.payments-success-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding: 13px 15px;
+  border-radius: 9px;
+  font-size: 13px;
+}
+
+.payments-error-banner {
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.payments-success-banner {
+  border: 1px solid #bde8d0;
+  background: #f0fbf5;
+  color: #197647;
+}
+
+.payments-error-banner span,
+.payments-success-banner span {
+  flex: 1;
+}
+
+.payments-error-banner button,
+.payments-success-banner button {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .payments-stats {
@@ -84,21 +161,21 @@
 }
 
 .payments-stat-card p {
-  margin: 0 0 7px;
+  margin: 0 0 6px;
   color: #7b8494;
   font-size: 12px;
 }
 
 .payments-stat-card h2 {
-  margin: 0 0 7px;
+  margin: 0 0 6px;
   color: #202938;
-  font-size: 21px;
+  font-size: 20px;
   overflow-wrap: anywhere;
 }
 
 .payments-stat-card span {
   color: #969eab;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .payments-table-card {
@@ -109,19 +186,33 @@
 }
 
 .payments-table-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
   padding: 22px 24px;
   border-bottom: 1px solid #edf0f5;
 }
 
 .payments-table-heading h3 {
-  margin: 0 0 6px;
-  font-size: 17px;
+  margin: 0 0 5px;
+  font-size: 16px;
 }
 
 .payments-table-heading p {
   margin: 0;
   color: #8791a1;
-  font-size: 13px;
+  font-size: 12px;
+}
+
+.payments-count-badge {
+  padding: 6px 11px;
+  border-radius: 7px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .payments-filters {
@@ -130,6 +221,7 @@
   gap: 12px;
   padding: 18px 24px;
   border-bottom: 1px solid #edf0f5;
+  flex-wrap: wrap;
 }
 
 .payments-search {
@@ -137,7 +229,7 @@
   align-items: center;
   gap: 9px;
   flex: 1;
-  min-width: 160px;
+  min-width: 200px;
   padding: 10px 12px;
   border: 1px solid #dfe5ed;
   border-radius: 8px;
@@ -158,8 +250,8 @@
 }
 
 .payments-filters select {
-  min-width: 135px;
-  padding: 10px;
+  min-width: 165px;
+  padding: 10px 12px;
   border: 1px solid #dfe5ed;
   border-radius: 8px;
   outline: none;
@@ -190,7 +282,7 @@
 }
 
 .payments-table td {
-  padding: 16px 19px;
+  padding: 15px 19px;
   border-bottom: 1px solid #edf0f5;
   font-size: 12px;
 }
@@ -199,14 +291,19 @@
   border-bottom: none;
 }
 
-.payments-table tbody tr:hover {
-  background: #fcfdff;
+.payment-row {
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.payment-row:hover {
+  background: #f8faff;
 }
 
 .payment-transaction {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
 }
 
 .payment-transaction strong {
@@ -224,19 +321,18 @@
   font-weight: 600;
 }
 
-.payment-method {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: #647084;
-}
-
 .payment-date {
   color: #647084;
 }
 
+.payment-date-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .payment-amount {
-  color: #263244;
+  color: #15803d;
   font-weight: 700;
 }
 
@@ -244,7 +340,7 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  padding: 6px 9px;
+  padding: 5px 9px;
   border-radius: 6px;
   font-size: 10px;
   font-weight: 600;
@@ -265,11 +361,6 @@
 .payment-status.pending {
   background: #fff5e6;
   color: #b7771e;
-}
-
-.payment-status.failed {
-  background: #fff0f0;
-  color: #cc4242;
 }
 
 .payment-view-btn {
@@ -302,8 +393,7 @@
   font-size: 12px;
 }
 
-/* Payment details modal */
-
+/* Modals */
 .payment-modal-overlay {
   position: fixed;
   inset: 0;
@@ -313,11 +403,14 @@
   justify-content: center;
   padding: 20px;
   background: rgb(18 27 43 / 45%);
+  backdrop-filter: blur(2px);
 }
 
 .payment-modal {
   width: 100%;
-  max-width: 440px;
+  max-width: 460px;
+  max-height: 90vh;
+  overflow-y: auto;
   padding: 25px;
   border: 1px solid #e8edf4;
   border-radius: 14px;
@@ -330,18 +423,18 @@
   justify-content: space-between;
   align-items: flex-start;
   gap: 15px;
-  margin-bottom: 24px;
+  margin-bottom: 22px;
 }
 
 .payment-modal-heading h2 {
-  margin: 0 0 6px;
-  font-size: 20px;
+  margin: 0 0 5px;
+  font-size: 19px;
 }
 
 .payment-modal-heading p {
   margin: 0;
   color: #8791a1;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .payment-modal-close {
@@ -361,8 +454,8 @@
   display: flex;
   align-items: center;
   flex-direction: column;
-  gap: 10px;
-  padding: 22px;
+  gap: 8px;
+  padding: 20px;
   border-radius: 10px;
   background: #f7f9fc;
 }
@@ -374,18 +467,18 @@
 
 .payment-detail-amount > strong {
   color: #263244;
-  font-size: 30px;
+  font-size: 28px;
 }
 
 .payment-detail-list {
-  margin: 18px 0;
+  margin: 16px 0;
 }
 
 .payment-detail-list > div {
   display: flex;
   justify-content: space-between;
   gap: 15px;
-  padding: 13px 0;
+  padding: 12px 0;
   border-bottom: 1px solid #edf0f5;
   font-size: 12px;
 }
@@ -400,6 +493,68 @@
   overflow-wrap: anywhere;
 }
 
+.due-highlight {
+  color: #d97706 !important;
+}
+
+.payment-form-group {
+  margin-bottom: 16px;
+}
+
+.payment-form-group label {
+  display: block;
+  margin-bottom: 7px;
+  color: #475467;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.payment-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 7px;
+}
+
+.payment-label-row label {
+  margin-bottom: 0;
+}
+
+.fill-full-due-btn {
+  border: none;
+  background: transparent;
+  color: #3563e9;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fill-full-due-btn:hover {
+  text-decoration: underline;
+}
+
+.payment-form-group select,
+.payment-form-group input {
+  width: 100%;
+  height: 41px;
+  padding: 0 11px;
+  border: 1px solid #dfe5ed;
+  border-radius: 8px;
+  background: #fff;
+  color: #263244;
+  font-size: 12px;
+  outline: none;
+}
+
+.payment-form-error {
+  margin: 0 0 14px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 12px;
+}
+
 .payment-close-btn {
   width: 100%;
   padding: 11px;
@@ -412,8 +567,13 @@
   cursor: pointer;
 }
 
-.payment-close-btn:hover {
+.payment-close-btn:hover:not(:disabled) {
   background: #244fc9;
+}
+
+.payment-close-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 @media (max-width: 1150px) {
@@ -423,10 +583,6 @@
 }
 
 @media (max-width: 800px) {
-  .payments-page {
-    padding: 20px;
-  }
-
   .payments-filters {
     align-items: stretch;
     flex-direction: column;
@@ -440,10 +596,6 @@
 @media (max-width: 500px) {
   .payments-stats {
     grid-template-columns: 1fr;
-  }
-
-  .payments-heading h1 {
-    font-size: 23px;
   }
 
   .payment-modal {

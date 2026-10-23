@@ -1,6 +1,6 @@
-
 .stock-history-page {
-  padding: 28px;
+  max-width: 1600px;
+  margin: 0 auto;
   color: #1e293b;
 }
 
@@ -8,46 +8,112 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 25px;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
 }
 
 .stock-history-heading h1 {
   margin: 0;
-  font-size: 27px;
+  font-size: 25px;
   font-weight: 700;
   letter-spacing: -0.6px;
 }
 
 .stock-history-heading p {
-  margin: 7px 0 0;
+  margin: 6px 0 0;
   color: #64748b;
-  font-size: 14px;
+  font-size: 13px;
+}
+
+.history-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.history-refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 14px;
+  border: 1px solid #dbe2ea;
+  border-radius: 10px;
+  background: #fff;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.history-refresh-btn:hover:not(:disabled) {
+  background: #f8fafc;
+}
+
+.history-refresh-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.spin-icon {
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .history-heading-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 46px;
-  height: 46px;
+  width: 44px;
+  height: 44px;
   color: #2563eb;
   background: #eff6ff;
   border: 1px solid #dbeafe;
-  border-radius: 12px;
+  border-radius: 11px;
+}
+
+.history-error-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding: 13px 15px;
+  border: 1px solid #fecaca;
+  border-radius: 9px;
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 13px;
+}
+
+.history-error-banner span {
+  flex: 1;
+}
+
+.history-error-banner button {
+  border: none;
+  background: transparent;
+  color: #991b1b;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .history-stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 18px;
-  margin-bottom: 25px;
+  margin-bottom: 24px;
 }
 
 .history-stat-card {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 21px;
+  padding: 20px;
   background: #ffffff;
   border: 1px solid #e5eaf1;
   border-radius: 12px;
@@ -85,7 +151,7 @@
 }
 
 .history-stat-card p {
-  margin: 0 0 7px;
+  margin: 0 0 6px;
   color: #64748b;
   font-size: 12px;
   font-weight: 500;
@@ -93,14 +159,14 @@
 
 .history-stat-card h2 {
   margin: 0;
-  font-size: 25px;
+  font-size: 24px;
   font-weight: 700;
   line-height: 1.2;
 }
 
 .history-stat-card span {
   display: block;
-  margin-top: 6px;
+  margin-top: 5px;
   color: #94a3b8;
   font-size: 11px;
 }
@@ -117,19 +183,19 @@
   justify-content: space-between;
   align-items: center;
   gap: 15px;
-  padding: 23px 24px;
+  padding: 22px 24px;
 }
 
 .history-table-header h2 {
   margin: 0;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 700;
 }
 
 .history-table-header p {
-  margin: 6px 0 0;
+  margin: 5px 0 0;
   color: #64748b;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .history-record-count {
@@ -147,6 +213,7 @@
   align-items: center;
   gap: 12px;
   padding: 0 24px 20px;
+  flex-wrap: wrap;
 }
 
 .history-search {
@@ -154,7 +221,7 @@
   align-items: center;
   gap: 9px;
   flex: 1;
-  min-width: 180px;
+  min-width: 220px;
   padding: 0 12px;
   height: 41px;
   color: #94a3b8;
@@ -185,8 +252,8 @@
 
 .history-filters select {
   height: 41px;
-  max-width: 190px;
-  padding: 0 30px 0 11px;
+  max-width: 210px;
+  padding: 0 12px;
   color: #475569;
   background: #ffffff;
   border: 1px solid #dbe2ea;
@@ -235,8 +302,13 @@
   border-bottom: none;
 }
 
-.history-table tbody tr:hover {
-  background: #fbfdff;
+.history-row {
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.history-row:hover {
+  background: #f8faff;
 }
 
 .history-product-cell {
@@ -271,7 +343,7 @@
 
 .history-product-cell span {
   display: block;
-  margin-top: 5px;
+  margin-top: 4px;
   color: #94a3b8;
   font-size: 11px;
 }
@@ -297,12 +369,12 @@
 }
 
 .quantity-positive {
-  color: #15803d;
+  color: #15803d !important;
   font-size: 13px;
 }
 
 .quantity-negative {
-  color: #c2410c;
+  color: #c2410c !important;
   font-size: 13px;
 }
 
@@ -400,6 +472,7 @@
   justify-content: center;
   padding: 20px;
   background: rgb(15 23 42 / 45%);
+  backdrop-filter: blur(2px);
 }
 
 .history-detail-modal {
@@ -419,7 +492,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 15px;
-  margin-bottom: 24px;
+  margin-bottom: 22px;
 }
 
 .history-modal-header h2 {
@@ -429,7 +502,7 @@
 }
 
 .history-modal-header p {
-  margin: 7px 0 0;
+  margin: 6px 0 0;
   color: #64748b;
   font-size: 12px;
 }
@@ -490,7 +563,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 16px 0;
+  padding: 15px 0;
   border-bottom: 1px solid #edf0f5;
 }
 
@@ -528,18 +601,6 @@
 }
 
 @media (max-width: 800px) {
-  .stock-history-page {
-    padding: 20px;
-  }
-
-  .history-filters {
-    flex-wrap: wrap;
-  }
-
-  .history-search {
-    flex-basis: 100%;
-  }
-
   .history-filters select {
     flex: 1;
     max-width: none;
@@ -547,36 +608,12 @@
 }
 
 @media (max-width: 520px) {
-  .stock-history-page {
-    padding: 14px;
-  }
-
-  .stock-history-heading h1 {
-    font-size: 23px;
-  }
-
   .history-stats {
     grid-template-columns: 1fr;
     gap: 12px;
   }
 
-  .history-table-header {
-    padding: 18px;
-  }
-
-  .history-filters {
-    padding: 0 18px 18px;
-  }
-
-  .history-detail-modal {
-    padding: 18px;
-  }
-
   .history-detail-grid {
     grid-template-columns: 1fr;
-  }
-
-  .history-detail-product {
-    flex-wrap: wrap;
   }
 }

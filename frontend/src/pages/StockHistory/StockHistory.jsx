@@ -1,5 +1,4 @@
-
-import React, { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Search,
   ArrowDownToLine,
@@ -11,157 +10,277 @@ import {
   CalendarDays,
   Eye,
   X,
-} from 'lucide-react';
-import './StockHistory.css';
-
-const initialHistory = [
-  {
-    id: 1,
-    product: 'Wireless Mouse',
-    sku: 'PRD-001',
-    type: 'IN',
-    quantity: 50,
-    previousStock: 20,
-    currentStock: 70,
-    reason: 'New stock received',
-    reference: 'PO-1024',
-    date: '2026-10-18 10:30',
-    performedBy: 'Admin',
-  },
-  {
-    id: 2,
-    product: 'Mechanical Keyboard',
-    sku: 'PRD-002',
-    type: 'OUT',
-    quantity: 5,
-    previousStock: 25,
-    currentStock: 20,
-    reason: 'Customer billing',
-    reference: 'BILL-1042',
-    date: '2026-10-18 11:15',
-    performedBy: 'Admin',
-  },
-  {
-    id: 3,
-    product: 'USB-C Hub',
-    sku: 'PRD-003',
-    type: 'IN',
-    quantity: 20,
-    previousStock: 10,
-    currentStock: 30,
-    reason: 'Supplier delivery',
-    reference: 'PO-1025',
-    date: '2026-10-17 14:20',
-    performedBy: 'Manager',
-  },
-  {
-    id: 4,
-    product: 'Laptop Stand',
-    sku: 'PRD-004',
-    type: 'OUT',
-    quantity: 3,
-    previousStock: 18,
-    currentStock: 15,
-    reason: 'Customer billing',
-    reference: 'BILL-1039',
-    date: '2026-10-17 16:45',
-    performedBy: 'Admin',
-  },
-  {
-    id: 5,
-    product: 'Wireless Mouse',
-    sku: 'PRD-001',
-    type: 'OUT',
-    quantity: 8,
-    previousStock: 28,
-    currentStock: 20,
-    reason: 'Damaged items',
-    reference: 'ADJ-001',
-    date: '2026-10-16 09:10',
-    performedBy: 'Manager',
-  },
-  {
-    id: 6,
-    product: 'Monitor 24-inch',
-    sku: 'PRD-005',
-    type: 'IN',
-    quantity: 12,
-    previousStock: 8,
-    currentStock: 20,
-    reason: 'New stock received',
-    reference: 'PO-1021',
-    date: '2026-10-15 12:00',
-    performedBy: 'Admin',
-  },
-];
+  RefreshCw,
+  AlertTriangle,
+} from "lucide-react";
+import "./StockHistory.css";
+import api from "../../services/api";
 
 function formatDate(dateString) {
-  const [date, time] = dateString.split(' ');
-  const parsedDate = new Date(`${date}T${time}`);
+  if (!dateString) return "—";
+  const parsedDate = new Date(dateString);
+  if (Number.isNaN(parsedDate.getTime())) return String(dateString);
 
-  return parsedDate.toLocaleString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
+  return parsedDate.toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
 
-function StockHistory() {
-  const [history] = useState(initialHistory);
-  const [search, setSearch] = useState('');
-  const [typeFilter, setTypeFilter] = useState('ALL');
-  const [reasonFilter, setReasonFilter] = useState('ALL');
+function normalizeProduct(raw) {
+  if (!raw) return null;
+  const categoryName =
+    typeof raw.category === "object" && raw.category !== null
+      ? raw.category.name ?? ""
+      : String(raw.category ?? "");
+
+  return {
+    id: raw.id,
+    name: raw.name ?? raw.product ?? `Product #${raw.id}`,
+    category: categoryName,
+    price: Number(raw.price ?? 0),
+    quantity: Number(raw.quantity ?? 0),
+  };
+}
+
+/**
+ * Maps backend StockMovement entity:
+ * { id, product, movementType, quantity, previousStock, newStock, movementDate, reason }
+ */
+function normalizeMovement(raw, fallbackProduct) {
+  const prodObj = raw.product
+    ? normalizeProduct(raw.product)
+    : fallbackProduct || { id: 0, name: "Product", category: "" };
+
+  const previousStock = Number(raw.previousStock ?? 0);
+  const newStock = Number(raw.newStock ?? raw.currentStock ?? 0);
+  const quantity = Number(raw.quantity ?? Math.abs(newStock - previousStock));
+  const movementType = String(raw.movementType ?? raw.type ?? "ADJUSTMENT").toUpperCase();
+
+  // Determine whether stock increased (IN) or decreased (OUT)
+  const isIncrease =
+    newStock > previousStock ||
+    movementType === "STOCK_IN" ||
+    movementType === "BILL_CANCELLATION" ||
+    movementType === "IN";
+
+  const direction = isIncrease ? "IN" : "OUT";
+
+  return {
+    id: raw.id ?? `${prodObj.id}-${raw.movementDate}`,
+    productId: prodObj.id,
+    productName: prodObj.name,
+    categoryName: prodObj.category || "Uncategorized",
+    sku: `PRD-${String(prodObj.id ?? 0).padStart(3, "0")}`,
+    movementType,
+    direction,
+    quantity,
+    previousStock,
+    newStock,
+    reason: raw.reason || "—",
+    movementDate: raw.movementDate ?? raw.date ?? null,
+    reference: `MOV-${String(raw.id ?? 0).padStart(4, "0")}`,
+  };
+}
+
+function getMovementLabel(movementType) {
+  switch (movementType) {
+    case "STOCK_IN":
+      return "Stock In";
+    case "SALE":
+      return "Bill Sale";
+    case "ADJUSTMENT":
+      return "Adjustment";
+    case "BILL_CANCELLATION":
+      return "Bill Cancelled";
+    default:
+      return movementType;
+  }
+}
+
+export default function StockHistory() {
+  const [products, setProducts] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  // Filters
+  const [search, setSearch] = useState("");
+  const [productFilter, setProductFilter] = useState("ALL");
+  const [typeFilter, setTypeFilter] = useState("ALL");
+  const [reasonFilter, setReasonFilter] = useState("ALL");
+
+  // Detail Modal State
   const [selectedRecord, setSelectedRecord] = useState(null);
 
+  // Fetch products and their stock movement histories (GET /api/products & GET /api/products/{id}/stock-history)
+  const fetchAllStockHistory = useCallback(async (selectedProdId = "ALL") => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const productsRes = await api.get("/api/products");
+      if (!productsRes.data?.success || !Array.isArray(productsRes.data.data)) {
+        setError(productsRes.data?.message || "Unable to load products.");
+        setLoading(false);
+        return;
+      }
+
+      const normalizedProducts = productsRes.data.data.map(normalizeProduct);
+      setProducts(normalizedProducts);
+
+      const targetProducts =
+        selectedProdId === "ALL"
+          ? normalizedProducts
+          : normalizedProducts.filter(
+              (p) => String(p.id) === String(selectedProdId)
+            );
+
+      const historyResponses = await Promise.allSettled(
+        targetProducts.map((prod) =>
+          api
+            .get(`/api/products/${prod.id}/stock-history`)
+            .then((res) => ({ prod, data: res.data }))
+        )
+      );
+
+      const allMovements = [];
+      historyResponses.forEach((result) => {
+        if (
+          result.status === "fulfilled" &&
+          result.value.data?.success &&
+          Array.isArray(result.value.data.data)
+        ) {
+          const { prod, data } = result.value;
+          data.data.forEach((entry) => {
+            allMovements.push(normalizeMovement(entry, prod));
+          });
+        }
+      });
+
+      // Sort newest first by movementDate (and id descending as tie-breaker)
+      allMovements.sort((a, b) => {
+        const timeA = a.movementDate ? new Date(a.movementDate).getTime() : 0;
+        const timeB = b.movementDate ? new Date(b.movementDate).getTime() : 0;
+        if (timeB !== timeA) return timeB - timeA;
+        return Number(b.id ?? 0) - Number(a.id ?? 0);
+      });
+
+      setHistory(allMovements);
+    } catch (err) {
+      setError(
+        err?.response?.data?.message ||
+          "Unable to connect to backend to load stock history."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAllStockHistory("ALL");
+  }, [fetchAllStockHistory]);
+
+  const handleProductFilterChange = (value) => {
+    setProductFilter(value);
+    fetchAllStockHistory(value);
+  };
+
+  // Unique reasons dynamically derived from backend records
+  const availableReasons = useMemo(() => {
+    const set = new Set();
+    history.forEach((item) => {
+      if (item.reason && item.reason !== "—") {
+        set.add(item.reason);
+      }
+    });
+    return Array.from(set);
+  }, [history]);
+
+  // Filtered History
+  const filteredHistory = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    return history.filter((item) => {
+      const matchesSearch =
+        !query ||
+        item.productName.toLowerCase().includes(query) ||
+        item.sku.toLowerCase().includes(query) ||
+        item.categoryName.toLowerCase().includes(query) ||
+        item.reason.toLowerCase().includes(query) ||
+        item.reference.toLowerCase().includes(query) ||
+        item.movementType.toLowerCase().includes(query);
+
+      const matchesType =
+        typeFilter === "ALL" ||
+        item.direction === typeFilter ||
+        item.movementType === typeFilter;
+
+      const matchesReason =
+        reasonFilter === "ALL" || item.reason === reasonFilter;
+
+      return matchesSearch && matchesType && matchesReason;
+    });
+  }, [history, search, typeFilter, reasonFilter]);
+
+  // Summary Stats (computed from currently loaded history)
   const stats = useMemo(() => {
-    const stockIn = history
-      .filter((item) => item.type === 'IN')
+    const stockIn = filteredHistory
+      .filter((item) => item.direction === "IN")
       .reduce((total, item) => total + item.quantity, 0);
 
-    const stockOut = history
-      .filter((item) => item.type === 'OUT')
+    const stockOut = filteredHistory
+      .filter((item) => item.direction === "OUT")
       .reduce((total, item) => total + item.quantity, 0);
 
     return {
-      totalTransactions: history.length,
+      totalTransactions: filteredHistory.length,
       stockIn,
       stockOut,
       netChange: stockIn - stockOut,
     };
-  }, [history]);
-
-  const filteredHistory = history.filter((item) => {
-    const query = search.toLowerCase();
-
-    const matchesSearch =
-      item.product.toLowerCase().includes(query) ||
-      item.sku.toLowerCase().includes(query) ||
-      item.reference.toLowerCase().includes(query) ||
-      item.performedBy.toLowerCase().includes(query);
-
-    const matchesType =
-      typeFilter === 'ALL' || item.type === typeFilter;
-
-    const matchesReason =
-      reasonFilter === 'ALL' || item.reason === reasonFilter;
-
-    return matchesSearch && matchesType && matchesReason;
-  });
+  }, [filteredHistory]);
 
   return (
     <div className="stock-history-page">
       <div className="stock-history-heading">
         <div>
           <h1>Stock History</h1>
-          <p>Track every stock movement in your inventory.</p>
+          <p>
+            Track every stock addition, adjustment, bill sale, and cancellation
+            across your inventory.
+          </p>
         </div>
 
-        <div className="history-heading-icon">
-          <History size={22} />
+        <div className="history-heading-actions">
+          <button
+            type="button"
+            className="history-refresh-btn"
+            onClick={() => fetchAllStockHistory(productFilter)}
+            disabled={loading}
+          >
+            <RefreshCw size={15} className={loading ? "spin-icon" : ""} />
+            Refresh
+          </button>
+
+          <div className="history-heading-icon">
+            <History size={22} />
+          </div>
         </div>
       </div>
+
+      {error && (
+        <div className="history-error-banner" role="alert">
+          <AlertTriangle size={18} />
+          <span>{error}</span>
+          <button type="button" onClick={() => setError("")}>
+            Dismiss
+          </button>
+        </div>
+      )}
 
       <div className="history-stats">
         <div className="history-stat-card">
@@ -181,8 +300,8 @@ function StockHistory() {
           </div>
           <div>
             <p>Total Stock In</p>
-            <h2>{stats.stockIn}</h2>
-            <span>Units added</span>
+            <h2>+{stats.stockIn}</h2>
+            <span>Units added / restored</span>
           </div>
         </div>
 
@@ -192,8 +311,8 @@ function StockHistory() {
           </div>
           <div>
             <p>Total Stock Out</p>
-            <h2>{stats.stockOut}</h2>
-            <span>Units removed</span>
+            <h2>-{stats.stockOut}</h2>
+            <span>Units sold / deducted</span>
           </div>
         </div>
 
@@ -208,7 +327,7 @@ function StockHistory() {
           <div>
             <p>Net Stock Change</p>
             <h2>
-              {stats.netChange > 0 ? '+' : ''}
+              {stats.netChange > 0 ? "+" : ""}
               {stats.netChange}
             </h2>
             <span>Net units changed</span>
@@ -220,7 +339,11 @@ function StockHistory() {
         <div className="history-table-header">
           <div>
             <h2>Movement Records</h2>
-            <p>Review stock additions and deductions.</p>
+            <p>
+              {productFilter === "ALL"
+                ? "Showing movements across all products"
+                : `Showing movements for Product #${productFilter}`}
+            </p>
           </div>
 
           <span className="history-record-count">
@@ -232,21 +355,40 @@ function StockHistory() {
           <div className="history-search">
             <Search size={18} />
             <input
-              type="text"
-              placeholder="Search product, SKU, reference..."
+              type="search"
+              placeholder="Search product, SKU, reason, movement ID..."
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
           </div>
 
           <select
+            value={productFilter}
+            onChange={(event) => handleProductFilterChange(event.target.value)}
+            aria-label="Filter by product"
+          >
+            <option value="ALL">All Products</option>
+            {products.map((prod) => (
+              <option key={prod.id} value={String(prod.id)}>
+                {prod.name} (#{prod.id})
+              </option>
+            ))}
+          </select>
+
+          <select
             value={typeFilter}
             onChange={(event) => setTypeFilter(event.target.value)}
             aria-label="Filter by movement type"
           >
-            <option value="ALL">All movements</option>
-            <option value="IN">Stock In</option>
-            <option value="OUT">Stock Out</option>
+            <option value="ALL">All Movement Types</option>
+            <option value="IN">All Stock In (+)</option>
+            <option value="OUT">All Stock Out (-)</option>
+            <option value="STOCK_IN">STOCK_IN (Manual Add)</option>
+            <option value="SALE">SALE (Bill Created)</option>
+            <option value="ADJUSTMENT">ADJUSTMENT (Manual Deduct)</option>
+            <option value="BILL_CANCELLATION">
+              BILL_CANCELLATION (Restored)
+            </option>
           </select>
 
           <select
@@ -254,11 +396,12 @@ function StockHistory() {
             onChange={(event) => setReasonFilter(event.target.value)}
             aria-label="Filter by reason"
           >
-            <option value="ALL">All reasons</option>
-            <option value="New stock received">New stock received</option>
-            <option value="Supplier delivery">Supplier delivery</option>
-            <option value="Customer billing">Customer billing</option>
-            <option value="Damaged items">Damaged items</option>
+            <option value="ALL">All Reasons</option>
+            {availableReasons.map((reason) => (
+              <option key={reason} value={reason}>
+                {reason}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -266,103 +409,128 @@ function StockHistory() {
           <table className="history-table">
             <thead>
               <tr>
+                <th>ID</th>
                 <th>Product</th>
-                <th>Movement</th>
+                <th>Movement Type</th>
                 <th>Quantity</th>
                 <th>Stock Change</th>
                 <th>Reason</th>
                 <th>Date & Time</th>
-                <th>Reference</th>
                 <th>Action</th>
               </tr>
             </thead>
 
             <tbody>
-              {filteredHistory.map((item) => (
-                <tr key={item.id}>
-                  <td>
-                    <div className="history-product-cell">
-                      <div className="history-product-icon">
-                        <Package size={19} />
-                      </div>
-                      <div>
-                        <strong>{item.product}</strong>
-                        <span>{item.sku}</span>
-                      </div>
+              {loading ? (
+                <tr>
+                  <td colSpan="8">
+                    <div className="history-empty-state">
+                      <RefreshCw size={26} className="spin-icon" />
+                      <strong>Loading stock movement history...</strong>
                     </div>
-                  </td>
-
-                  <td>
-                    <span
-                      className={`movement-badge ${
-                        item.type === 'IN' ? 'movement-in' : 'movement-out'
-                      }`}
-                    >
-                      {item.type === 'IN' ? (
-                        <ArrowDownToLine size={14} />
-                      ) : (
-                        <ArrowUpFromLine size={14} />
-                      )}
-                      {item.type === 'IN' ? 'Stock In' : 'Stock Out'}
-                    </span>
-                  </td>
-
-                  <td>
-                    <strong
-                      className={
-                        item.type === 'IN'
-                          ? 'quantity-positive'
-                          : 'quantity-negative'
-                      }
-                    >
-                      {item.type === 'IN' ? '+' : '-'}
-                      {item.quantity}
-                    </strong>
-                  </td>
-
-                  <td>
-                    <div className="stock-change-cell">
-                      <span>{item.previousStock}</span>
-                      <span className="stock-change-arrow">→</span>
-                      <strong>{item.currentStock}</strong>
-                    </div>
-                  </td>
-
-                  <td>
-                    <span className="history-reason">{item.reason}</span>
-                  </td>
-
-                  <td>
-                    <div className="history-date-cell">
-                      <CalendarDays size={15} />
-                      <span>{formatDate(item.date)}</span>
-                    </div>
-                  </td>
-
-                  <td>
-                    <span className="history-reference">{item.reference}</span>
-                  </td>
-
-                  <td>
-                    <button
-                      className="history-view-button"
-                      title="View details"
-                      aria-label={`View ${item.product} movement details`}
-                      onClick={() => setSelectedRecord(item)}
-                    >
-                      <Eye size={17} />
-                    </button>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredHistory.map((item) => (
+                  <tr
+                    key={item.id}
+                    className="history-row"
+                    onClick={() => setSelectedRecord(item)}
+                  >
+                    <td>
+                      <span className="history-reference">
+                        {item.reference}
+                      </span>
+                    </td>
 
-              {filteredHistory.length === 0 && (
+                    <td>
+                      <div className="history-product-cell">
+                        <div className="history-product-icon">
+                          <Package size={19} />
+                        </div>
+                        <div>
+                          <strong>{item.productName}</strong>
+                          <span>
+                            {item.sku} • {item.categoryName}
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+
+                    <td>
+                      <span
+                        className={`movement-badge ${
+                          item.direction === "IN"
+                            ? "movement-in"
+                            : "movement-out"
+                        }`}
+                      >
+                        {item.direction === "IN" ? (
+                          <ArrowDownToLine size={14} />
+                        ) : (
+                          <ArrowUpFromLine size={14} />
+                        )}
+                        {getMovementLabel(item.movementType)}
+                      </span>
+                    </td>
+
+                    <td>
+                      <strong
+                        className={
+                          item.direction === "IN"
+                            ? "quantity-positive"
+                            : "quantity-negative"
+                        }
+                      >
+                        {item.direction === "IN" ? "+" : "-"}
+                        {item.quantity}
+                      </strong>
+                    </td>
+
+                    <td>
+                      <div className="stock-change-cell">
+                        <span>{item.previousStock}</span>
+                        <span className="stock-change-arrow">→</span>
+                        <strong>{item.newStock}</strong>
+                      </div>
+                    </td>
+
+                    <td>
+                      <span className="history-reason">{item.reason}</span>
+                    </td>
+
+                    <td>
+                      <div className="history-date-cell">
+                        <CalendarDays size={15} />
+                        <span>{formatDate(item.movementDate)}</span>
+                      </div>
+                    </td>
+
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        className="history-view-button"
+                        title="View movement details"
+                        aria-label={`View ${item.productName} movement details`}
+                        onClick={() => setSelectedRecord(item)}
+                      >
+                        <Eye size={17} />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+
+              {!loading && filteredHistory.length === 0 && (
                 <tr>
                   <td colSpan="8">
                     <div className="history-empty-state">
                       <History size={30} />
                       <strong>No stock movements found</strong>
-                      <span>Try changing your search or filters.</span>
+                      <span>
+                        Try changing your product, movement type, or search
+                        filters.
+                      </span>
                     </div>
                   </td>
                 </tr>
@@ -376,6 +544,7 @@ function StockHistory() {
         </div>
       </div>
 
+      {/* Movement Details Modal */}
       {selectedRecord && (
         <div
           className="history-modal-overlay"
@@ -392,6 +561,7 @@ function StockHistory() {
               </div>
 
               <button
+                type="button"
                 className="history-modal-close"
                 onClick={() => setSelectedRecord(null)}
                 aria-label="Close details"
@@ -405,25 +575,38 @@ function StockHistory() {
                 <Package size={24} />
               </div>
               <div>
-                <h3>{selectedRecord.product}</h3>
-                <p>{selectedRecord.sku}</p>
+                <h3>{selectedRecord.productName}</h3>
+                <p>
+                  {selectedRecord.sku} • {selectedRecord.categoryName}
+                </p>
               </div>
               <span
                 className={`movement-badge ${
-                  selectedRecord.type === 'IN'
-                    ? 'movement-in'
-                    : 'movement-out'
+                  selectedRecord.direction === "IN"
+                    ? "movement-in"
+                    : "movement-out"
                 }`}
               >
-                {selectedRecord.type === 'IN' ? 'Stock In' : 'Stock Out'}
+                {getMovementLabel(selectedRecord.movementType)}
               </span>
             </div>
 
             <div className="history-detail-grid">
               <div>
+                <span>Movement Type</span>
+                <strong>{selectedRecord.movementType}</strong>
+              </div>
+
+              <div>
                 <span>Quantity Changed</span>
-                <strong>
-                  {selectedRecord.type === 'IN' ? '+' : '-'}
+                <strong
+                  className={
+                    selectedRecord.direction === "IN"
+                      ? "quantity-positive"
+                      : "quantity-negative"
+                  }
+                >
+                  {selectedRecord.direction === "IN" ? "+" : "-"}
                   {selectedRecord.quantity} units
                 </strong>
               </div>
@@ -434,8 +617,8 @@ function StockHistory() {
               </div>
 
               <div>
-                <span>Current Stock</span>
-                <strong>{selectedRecord.currentStock} units</strong>
+                <span>New Stock</span>
+                <strong>{selectedRecord.newStock} units</strong>
               </div>
 
               <div>
@@ -444,17 +627,13 @@ function StockHistory() {
               </div>
 
               <div>
-                <span>Performed By</span>
-                <strong>{selectedRecord.performedBy}</strong>
-              </div>
-
-              <div>
                 <span>Date & Time</span>
-                <strong>{formatDate(selectedRecord.date)}</strong>
+                <strong>{formatDate(selectedRecord.movementDate)}</strong>
               </div>
             </div>
 
             <button
+              type="button"
               className="history-modal-done"
               onClick={() => setSelectedRecord(null)}
             >
@@ -466,5 +645,3 @@ function StockHistory() {
     </div>
   );
 }
-
-export default StockHistory;

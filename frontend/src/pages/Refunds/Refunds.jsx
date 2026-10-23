@@ -1,172 +1,293 @@
-
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Search,
   RotateCcw,
-  Wallet,
   CheckCircle2,
-  Clock3,
-  XCircle,
+  ReceiptText,
+  IndianRupee,
   Eye,
   X,
-} from 'lucide-react';
-import './Refunds.css';
+  RefreshCw,
+  AlertTriangle,
+  Calendar,
+} from "lucide-react";
+import "./Refunds.css";
+import api from "../../services/api";
 
-const initialRefunds = [
-  {
-    id: 201,
-    billId: 'BILL-0011',
-    customer: 'Rahul Sharma',
-    amount: 750,
-    reason: 'Defective product',
-    status: 'COMPLETED',
-    date: '2026-10-18',
-    method: 'UPI',
-  },
-  {
-    id: 202,
-    billId: 'BILL-0012',
-    customer: 'Priya Verma',
-    amount: 450,
-    reason: 'Wrong item delivered',
-    status: 'PENDING',
-    date: '2026-10-18',
-    method: 'CASH',
-  },
-  {
-    id: 203,
-    billId: 'BILL-0013',
-    customer: 'Amit Patel',
-    amount: 1200,
-    reason: 'Product returned',
-    status: 'COMPLETED',
-    date: '2026-10-17',
-    method: 'CARD',
-  },
-  {
-    id: 204,
-    billId: 'BILL-0014',
-    customer: 'Neha Singh',
-    amount: 300,
-    reason: 'Damaged packaging',
-    status: 'REJECTED',
-    date: '2026-10-16',
-    method: 'UPI',
-  },
-];
+function formatCurrency(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return "₹0.00";
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 2,
+  }).format(num);
+}
 
-const formatCurrency = (amount) =>
-  `₹${amount.toLocaleString('en-IN')}`;
+function formatDateTime(value) {
+  if (!value) return "—";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return String(value);
 
-const formatDate = (date) =>
-  new Date(`${date}T00:00:00`).toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
+  return parsed.toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
+}
 
-function Refunds() {
-  const [refunds] = useState(initialRefunds);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('ALL');
+function normalizeRefund(raw, fallbackBill) {
+  const billObj = raw.bill || fallbackBill || {};
+  const customerObj = billObj.customer || {};
+
+  const refundId = raw.id ?? 0;
+  const billId = billObj.id ?? 0;
+  const amount = Number(raw.amount ?? 0);
+  const billTotal = Number(billObj.totalAmount ?? amount);
+
+  return {
+    id: refundId,
+    refundCode: `REF-${String(refundId).padStart(4, "0")}`,
+    billId,
+    billCode: `BILL-${String(billId).padStart(4, "0")}`,
+    customerName:
+      customerObj.name ??
+      customerObj.customerName ??
+      (billId ? `Customer (Bill #${billId})` : "Walk-in Customer"),
+    customerContact:
+      customerObj.phone ??
+      customerObj.mobile ??
+      customerObj.phoneNumber ??
+      customerObj.email ??
+      "",
+    amount,
+    billTotal,
+    isFullRefund: amount >= billTotal && billTotal > 0,
+    refundDate: raw.refundDate ?? raw.createdAt ?? billObj.billDate ?? null,
+    reason: "Bill Cancelled",
+    status: "Completed",
+    items: Array.isArray(billObj.items) ? billObj.items : [],
+  };
+}
+
+export default function Refunds() {
+  const [bills, setBills] = useState([]);
+  const [refunds, setRefunds] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  // Filters
+  const [search, setSearch] = useState("");
+  const [billFilter, setBillFilter] = useState("ALL");
+  const [typeFilter, setTypeFilter] = useState("ALL"); // ALL | FULL | PARTIAL
+
+  // Modal State
   const [selectedRefund, setSelectedRefund] = useState(null);
 
-  const filteredRefunds = refunds.filter((refund) => {
-    const matchesSearch =
-      `${refund.id} ${refund.billId} ${refund.customer} ${refund.reason}`
-        .toLowerCase()
-        .includes(search.toLowerCase());
+  // Fetch all bills from GET /api/bill, then fetch each bill's refunds via GET /api/bill/{id}/refunds
+  const fetchAllRefunds = useCallback(async (selectedBillId = "ALL") => {
+    try {
+      setLoading(true);
+      setError("");
 
-    const matchesStatus =
-      statusFilter === 'ALL' || refund.status === statusFilter;
+      const billsRes = await api.get("/api/bill");
+      if (!billsRes.data?.success || !Array.isArray(billsRes.data.data)) {
+        setError(billsRes.data?.message || "Unable to load bills for refunds.");
+        setLoading(false);
+        return;
+      }
 
-    return matchesSearch && matchesStatus;
-  });
+      const allBills = billsRes.data.data;
+      setBills(allBills);
 
-  const completedRefunds = refunds.filter(
-    (refund) => refund.status === 'COMPLETED'
-  );
+      const targetBills =
+        selectedBillId === "ALL"
+          ? allBills
+          : allBills.filter((b) => String(b.id) === String(selectedBillId));
 
-  const totalRefunded = completedRefunds.reduce(
-    (sum, refund) => sum + refund.amount,
-    0
-  );
+      const refundResponses = await Promise.allSettled(
+        targetBills.map((bill) =>
+          api
+            .get(`/api/bill/${bill.id}/refunds`)
+            .then((res) => ({ bill, data: res.data }))
+        )
+      );
 
-  const pendingAmount = refunds
-    .filter((refund) => refund.status === 'PENDING')
-    .reduce((sum, refund) => sum + refund.amount, 0);
+      const collectedRefunds = [];
+      refundResponses.forEach((result) => {
+        if (
+          result.status === "fulfilled" &&
+          result.value.data?.success &&
+          Array.isArray(result.value.data.data)
+        ) {
+          const { bill, data } = result.value;
+          data.data.forEach((entry) => {
+            collectedRefunds.push(normalizeRefund(entry, bill));
+          });
+        }
+      });
 
-  const rejectedCount = refunds.filter(
-    (refund) => refund.status === 'REJECTED'
-  ).length;
+      // Sort newest first by refundDate (and id descending)
+      collectedRefunds.sort((a, b) => {
+        const timeA = a.refundDate ? new Date(a.refundDate).getTime() : 0;
+        const timeB = b.refundDate ? new Date(b.refundDate).getTime() : 0;
+        if (timeB !== timeA) return timeB - timeA;
+        return Number(b.id ?? 0) - Number(a.id ?? 0);
+      });
 
-  const getStatusIcon = (status) => {
-    if (status === 'COMPLETED') return <CheckCircle2 size={15} />;
-    if (status === 'PENDING') return <Clock3 size={15} />;
-    return <XCircle size={15} />;
+      setRefunds(collectedRefunds);
+    } catch (err) {
+      setError(
+        err?.response?.data?.message ||
+          "Unable to connect to backend to load refunds."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAllRefunds("ALL");
+  }, [fetchAllRefunds]);
+
+  const handleBillFilterChange = (value) => {
+    setBillFilter(value);
+    fetchAllRefunds(value);
   };
 
-  const getStatusLabel = (status) => {
-    if (status === 'COMPLETED') return 'Completed';
-    if (status === 'PENDING') return 'Pending';
-    return 'Rejected';
-  };
+  // Filtered Refunds
+  const filteredRefunds = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    return refunds.filter((item) => {
+      const matchesSearch =
+        !query ||
+        item.refundCode.toLowerCase().includes(query) ||
+        item.billCode.toLowerCase().includes(query) ||
+        String(item.id).includes(query) ||
+        String(item.billId).includes(query) ||
+        item.customerName.toLowerCase().includes(query) ||
+        item.customerContact.toLowerCase().includes(query);
+
+      const matchesType =
+        typeFilter === "ALL" ||
+        (typeFilter === "FULL" && item.isFullRefund) ||
+        (typeFilter === "PARTIAL" && !item.isFullRefund);
+
+      return matchesSearch && matchesType;
+    });
+  }, [refunds, search, typeFilter]);
+
+  // Summary Stats
+  const stats = useMemo(() => {
+    const totalRefundedAmount = filteredRefunds.reduce(
+      (sum, item) => sum + item.amount,
+      0
+    );
+    const fullRefundCount = filteredRefunds.filter(
+      (item) => item.isFullRefund
+    ).length;
+    const partialRefundCount = filteredRefunds.filter(
+      (item) => !item.isFullRefund
+    ).length;
+    const avgRefund =
+      filteredRefunds.length > 0
+        ? totalRefundedAmount / filteredRefunds.length
+        : 0;
+
+    return {
+      totalCount: filteredRefunds.length,
+      totalRefundedAmount,
+      fullRefundCount,
+      partialRefundCount,
+      avgRefund,
+    };
+  }, [filteredRefunds]);
 
   return (
     <div className="refunds-page">
       <div className="refunds-heading">
         <div>
           <h1>Refunds</h1>
-          <p>Review returned products and customer refund records.</p>
+          <p>
+            Track all customer refunds generated from cancelled bills.
+          </p>
         </div>
 
-        <div className="refunds-heading-icon">
-          <RotateCcw size={22} />
+        <div className="refunds-heading-actions">
+          <button
+            type="button"
+            className="refunds-refresh-btn"
+            onClick={() => fetchAllRefunds(billFilter)}
+            disabled={loading}
+          >
+            <RefreshCw size={15} className={loading ? "spin-icon" : ""} />
+            Refresh
+          </button>
+
+          <div className="refunds-heading-icon">
+            <RotateCcw size={22} />
+          </div>
         </div>
       </div>
 
+      {error && (
+        <div className="refunds-error-banner" role="alert">
+          <AlertTriangle size={18} />
+          <span>{error}</span>
+          <button type="button" onClick={() => setError("")}>
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {/* 4 Summary Stat Cards */}
       <div className="refunds-stats">
         <div className="refund-stat-card">
-          <div className="refund-stat-icon green">
-            <Wallet size={22} />
+          <div className="refund-stat-icon blue">
+            <RotateCcw size={20} />
           </div>
           <div>
-            <p>Total Refunded</p>
-            <h2>{formatCurrency(totalRefunded)}</h2>
-            <span>Completed refunds only</span>
+            <p>Total Refunds</p>
+            <h2>{stats.totalCount}</h2>
+            <span>Processed refund records</span>
+          </div>
+        </div>
+
+        <div className="refund-stat-card">
+          <div className="refund-stat-icon green">
+            <IndianRupee size={20} />
+          </div>
+          <div>
+            <p>Total Refunded Amount</p>
+            <h2>{formatCurrency(stats.totalRefundedAmount)}</h2>
+            <span>Returned on cancelled bills</span>
           </div>
         </div>
 
         <div className="refund-stat-card">
           <div className="refund-stat-icon orange">
-            <Clock3 size={22} />
+            <CheckCircle2 size={20} />
           </div>
           <div>
-            <p>Pending Amount</p>
-            <h2>{formatCurrency(pendingAmount)}</h2>
-            <span>Awaiting processing</span>
-          </div>
-        </div>
-
-        <div className="refund-stat-card">
-          <div className="refund-stat-icon blue">
-            <RotateCcw size={22} />
-          </div>
-          <div>
-            <p>Total Requests</p>
-            <h2>{refunds.length}</h2>
-            <span>All refund records</span>
+            <p>Full vs Partial Refunds</p>
+            <h2>
+              {stats.fullRefundCount} Full / {stats.partialRefundCount} Partial
+            </h2>
+            <span>Based on paid amount vs bill total</span>
           </div>
         </div>
 
         <div className="refund-stat-card">
           <div className="refund-stat-icon red">
-            <XCircle size={22} />
+            <ReceiptText size={20} />
           </div>
           <div>
-            <p>Rejected Requests</p>
-            <h2>{rejectedCount}</h2>
-            <span>Requests not approved</span>
+            <p>Average Refund</p>
+            <h2>{formatCurrency(stats.avgRefund)}</h2>
+            <span>Per cancelled paid bill</span>
           </div>
         </div>
       </div>
@@ -175,30 +296,48 @@ function Refunds() {
         <div className="refunds-table-heading">
           <div>
             <h3>Refund History</h3>
-            <p>Search refund records and review their status.</p>
+            <p>
+              When a paid or partially paid bill is cancelled, its paid amount
+              is automatically refunded here.
+            </p>
           </div>
+          <span className="refunds-count-badge">
+            {filteredRefunds.length} records
+          </span>
         </div>
 
         <div className="refunds-filters">
           <div className="refunds-search">
-            <Search size={18} />
+            <Search size={17} />
             <input
-              type="text"
-              placeholder="Search bill, customer or reason..."
+              type="search"
+              placeholder="Search by Refund ID, Bill ID, or customer name..."
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
           </div>
 
           <select
-            aria-label="Filter refunds by status"
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
+            value={billFilter}
+            onChange={(event) => handleBillFilterChange(event.target.value)}
+            aria-label="Filter refunds by bill"
           >
-            <option value="ALL">All Statuses</option>
-            <option value="COMPLETED">Completed</option>
-            <option value="PENDING">Pending</option>
-            <option value="REJECTED">Rejected</option>
+            <option value="ALL">All Bills ({bills.length})</option>
+            {bills.map((bill) => (
+              <option key={bill.id} value={String(bill.id)}>
+                Bill #{bill.id} — {bill.customer?.name || "Customer"}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={typeFilter}
+            onChange={(event) => setTypeFilter(event.target.value)}
+            aria-label="Filter by refund coverage"
+          >
+            <option value="ALL">All Refund Types</option>
+            <option value="FULL">Full Bill Refund</option>
+            <option value="PARTIAL">Partial Paid Refund</option>
           </select>
         </div>
 
@@ -207,77 +346,93 @@ function Refunds() {
             <thead>
               <tr>
                 <th>Refund ID</th>
-                <th>Customer / Bill</th>
+                <th>Bill ID</th>
+                <th>Customer</th>
                 <th>Reason</th>
-                <th>Method</th>
-                <th>Date</th>
-                <th>Amount</th>
+                <th>Refund Type</th>
+                <th>Refund Date</th>
+                <th>Refund Amount</th>
                 <th>Status</th>
-                <th>Details</th>
+                <th>Action</th>
               </tr>
             </thead>
 
             <tbody>
-              {filteredRefunds.map((refund) => (
-                <tr key={refund.id}>
-                  <td>
-                    <strong className="refund-id">
-                      REF-{refund.id}
-                    </strong>
-                  </td>
-
-                  <td>
-                    <div className="refund-customer-cell">
-                      <strong>{refund.customer}</strong>
-                      <span>{refund.billId}</span>
-                    </div>
-                  </td>
-
-                  <td>
-                    <span className="refund-reason">
-                      {refund.reason}
-                    </span>
-                  </td>
-
-                  <td>
-                    <span className="refund-method">
-                      {refund.method.replace('_', ' ')}
-                    </span>
-                  </td>
-
-                  <td className="refund-date">
-                    {formatDate(refund.date)}
-                  </td>
-
-                  <td className="refund-amount">
-                    {formatCurrency(refund.amount)}
-                  </td>
-
-                  <td>
-                    <span
-                      className={`refund-status ${refund.status.toLowerCase()}`}
-                    >
-                      {getStatusIcon(refund.status)}
-                      {getStatusLabel(refund.status)}
-                    </span>
-                  </td>
-
-                  <td>
-                    <button
-                      className="refund-view-btn"
-                      title="View refund details"
-                      onClick={() => setSelectedRefund(refund)}
-                    >
-                      <Eye size={16} />
-                    </button>
+              {loading ? (
+                <tr>
+                  <td colSpan="9" className="refunds-empty">
+                    Loading refund records...
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredRefunds.map((item) => (
+                  <tr
+                    key={item.id}
+                    className="refund-row"
+                    onClick={() => setSelectedRefund(item)}
+                  >
+                    <td>
+                      <strong className="refund-id">{item.refundCode}</strong>
+                    </td>
 
-              {filteredRefunds.length === 0 && (
+                    <td>
+                      <span className="refund-method">{item.billCode}</span>
+                    </td>
+
+                    <td>
+                      <div className="refund-customer-cell">
+                        <strong>{item.customerName}</strong>
+                        {item.customerContact && (
+                          <span>{item.customerContact}</span>
+                        )}
+                      </div>
+                    </td>
+
+                    <td className="refund-reason">{item.reason}</td>
+
+                    <td>
+                      <span className="refund-method">
+                        {item.isFullRefund ? "Full Refund" : "Partial Paid"}
+                      </span>
+                    </td>
+
+                    <td className="refund-date">
+                      <span className="refund-date-inline">
+                        <Calendar size={13} />
+                        {formatDateTime(item.refundDate)}
+                      </span>
+                    </td>
+
+                    <td className="refund-amount">
+                      {formatCurrency(item.amount)}
+                    </td>
+
+                    <td>
+                      <span className="refund-status completed">
+                        <CheckCircle2 size={13} />
+                        {item.status}
+                      </span>
+                    </td>
+
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        className="refund-view-btn"
+                        title="View refund details"
+                        onClick={() => setSelectedRefund(item)}
+                      >
+                        <Eye size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+
+              {!loading && filteredRefunds.length === 0 && (
                 <tr>
-                  <td colSpan="8" className="refunds-empty">
-                    No refund records match your filters.
+                  <td colSpan="9" className="refunds-empty">
+                    No refunds found. Refunds are created automatically when a
+                    bill with a paid amount &gt; ₹0 is cancelled.
                   </td>
                 </tr>
               )}
@@ -286,83 +441,104 @@ function Refunds() {
         </div>
 
         <div className="refunds-table-footer">
-          Showing {filteredRefunds.length} of {refunds.length} refund records
+          Showing {filteredRefunds.length} of {refunds.length} total refund
+          records
         </div>
       </div>
 
+      {/* Refund Details Modal */}
       {selectedRefund && (
         <div
           className="refund-modal-overlay"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              setSelectedRefund(null);
-            }
-          }}
+          onClick={() => setSelectedRefund(null)}
         >
           <div
             className="refund-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="refund-modal-title"
+            onClick={(event) => event.stopPropagation()}
           >
             <div className="refund-modal-heading">
               <div>
-                <h2 id="refund-modal-title">Refund Details</h2>
-                <p>Refund request information</p>
+                <h2>Refund Details</h2>
+                <p>
+                  {selectedRefund.refundCode} • Linked to{" "}
+                  {selectedRefund.billCode}
+                </p>
               </div>
 
               <button
+                type="button"
                 className="refund-modal-close"
-                aria-label="Close"
                 onClick={() => setSelectedRefund(null)}
+                aria-label="Close modal"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
             <div className="refund-detail-amount">
-              <span>Refund Amount</span>
+              <span>Refunded Amount</span>
               <strong>{formatCurrency(selectedRefund.amount)}</strong>
-              <span
-                className={`refund-status ${selectedRefund.status.toLowerCase()}`}
-              >
-                {getStatusIcon(selectedRefund.status)}
-                {getStatusLabel(selectedRefund.status)}
+              <span className="refund-status completed">
+                <CheckCircle2 size={13} />
+                Refund Completed
               </span>
             </div>
 
             <div className="refund-detail-list">
               <div>
                 <span>Refund ID</span>
-                <strong>REF-{selectedRefund.id}</strong>
+                <strong>#{selectedRefund.id}</strong>
               </div>
               <div>
-                <span>Bill Number</span>
-                <strong>{selectedRefund.billId}</strong>
+                <span>Bill ID</span>
+                <strong>#{selectedRefund.billId}</strong>
               </div>
               <div>
                 <span>Customer</span>
-                <strong>{selectedRefund.customer}</strong>
+                <strong>{selectedRefund.customerName}</strong>
+              </div>
+              {selectedRefund.customerContact && (
+                <div>
+                  <span>Customer Contact</span>
+                  <strong>{selectedRefund.customerContact}</strong>
+                </div>
+              )}
+              <div>
+                <span>Original Bill Total</span>
+                <strong>{formatCurrency(selectedRefund.billTotal)}</strong>
+              </div>
+              <div>
+                <span>Refund Date & Time</span>
+                <strong>{formatDateTime(selectedRefund.refundDate)}</strong>
               </div>
               <div>
                 <span>Reason</span>
                 <strong>{selectedRefund.reason}</strong>
               </div>
-              <div>
-                <span>Refund Method</span>
-                <strong>{selectedRefund.method.replace('_', ' ')}</strong>
-              </div>
-              <div>
-                <span>Request Date</span>
-                <strong>{formatDate(selectedRefund.date)}</strong>
-              </div>
             </div>
 
+            {selectedRefund.items.length > 0 && (
+              <div className="refund-items-box">
+                <h4>Cancelled Bill Items ({selectedRefund.items.length})</h4>
+                <ul>
+                  {selectedRefund.items.map((item, idx) => (
+                    <li key={idx}>
+                      <span>
+                        {item.productName} × {item.quantity}
+                      </span>
+                      <strong>{formatCurrency(item.itemTotal)}</strong>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             <button
+              type="button"
               className="refund-close-btn"
               onClick={() => setSelectedRefund(null)}
             >
-              Close
+              Close Details
             </button>
           </div>
         </div>
@@ -370,5 +546,3 @@ function Refunds() {
     </div>
   );
 }
-
-export default Refunds;
