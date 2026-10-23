@@ -1,0 +1,89 @@
+# ==========================================
+# FRONTEND - React / Vite / Node.js
+# ==========================================
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/coverage/
+
+# Frontend environment files
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# ==========================================
+# BACKEND - Maven / Spring Boot
+# ==========================================
+backend/target/
+
+# Maven wrapper: keep these tracked
+# mvnw
+# mvnw.cmd
+# .mvn/wrapper/maven-wrapper.properties
+# .mvn/wrapper/maven-wrapper.jar
+
+# ==========================================
+# JAVA BUILD / COMPILED FILES
+# ==========================================
+*.class
+*.jar
+*.war
+hs_err_pid*
+
+# ==========================================
+# IDE FILES
+# ==========================================
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+.factorypath
+.metadata/
+
+# ==========================================
+# ENVIRONMENT FILES / SECRETS
+# ==========================================
+.env
+.env.*
+!.env.example
+
+# JWT signing secrets
+jwt-secret.txt
+jwt-private-key.pem
+jwt-public-key.pem
+
+# Private keys and certificates
+*.key
+*.p12
+*.pfx
+*.keystore
+
+# ==========================================
+# LOGS
+# ==========================================
+*.log
+logs/
+
+# ==========================================
+# OPERATING SYSTEM FILES
+# ==========================================
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ==========================================
+# TEMPORARY FILES
+# ==========================================
+*.tmp
+*.swp
+*.bak
+*~
+
+# ==========================================
+# TEST / TOOL OUTPUTS
+# ==========================================
+test-results/
+playwright-report/
+.nyc_output/
