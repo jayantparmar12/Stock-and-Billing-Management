@@ -1,7 +1,7 @@
-
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import MainLayout from "./layouts/MainLayout/MainLayout";
-import "./styles/global.css";
+import ProtectedRoute from "./components/ProtectedRoute/ProtectedRoute.jsx";
+import Auth from "./pages/Auth/Auth.jsx";
 import Dashboard from "./pages/Dashboard/Dashboard.jsx";
 import Products from "./pages/Products/Products.jsx";
 import Categories from "./pages/Categories/Categories.jsx";
@@ -10,6 +10,7 @@ import Billing from "./pages/Billling/Billing.jsx";
 import Payments from "./pages/Payments/Payments.jsx";
 import Refunds from "./pages/Refunds/Refunds.jsx";
 import StockHistory from "./pages/StockHistory/StockHistory.jsx";
+import "./styles/global.css";
 
 function PagePlaceholder({ title }) {
   return (
@@ -24,45 +25,24 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route element={<MainLayout />}>
-          <Route
-            path="/"
-            element={<Dashboard />}
-          />
-          <Route
-            path="/products"
-            element={<Products />}
-          />
-          <Route
-            path="/categories"
-            element={<Categories />}
-          />
-          <Route
-            path="/customers"
-            element={<Customers />}
-          />
-          <Route
-            path="/billing"
-            element={<Billing />}
-          />
-          <Route
-            path="/payments"
-            element={<Payments />}
-          />
-          <Route
-            path="/refunds"
-            element={<Refunds />}
-          />
-          <Route
-            path="/stock-history"
-            element={<StockHistory />}
-          />
+        {/* Public Login & Register Route */}
+        <Route path="/login" element={<Auth />} />
+
+        {/* Protected Routes (Requires JWT Token) */}
+        <Route element={<ProtectedRoute />}>
+          <Route element={<MainLayout />}>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/products" element={<Products />} />
+            <Route path="/categories" element={<Categories />} />
+            <Route path="/customers" element={<Customers />} />
+            <Route path="/billing" element={<Billing />} />
+            <Route path="/payments" element={<Payments />} />
+            <Route path="/refunds" element={<Refunds />} />
+            <Route path="/stock-history" element={<StockHistory />} />
+          </Route>
         </Route>
 
-        <Route
-          path="*"
-          element={<PagePlaceholder title="Page not found" />}
-        />
+        <Route path="*" element={<PagePlaceholder title="Page not found" />} />
       </Routes>
     </BrowserRouter>
   );
