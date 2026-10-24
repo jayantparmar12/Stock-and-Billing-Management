@@ -8,12 +8,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import org.springframework.web.bind.annotation.CrossOrigin;
 
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("api/customers")
-@CrossOrigin(origins = "http://localhost:5173")
 public class CustomerController {
     private final CustomerService customerService;
 
