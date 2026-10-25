@@ -13,43 +13,26 @@ import {
 import "./Categories.css";
 import api from "../../services/api";
 
-const initialCategories = [
-  {
-    id: 1,
-    name: "Electronics",
-    description: "Electronic devices and accessories",
-    productCount: 18,
-  },
-  {
-    id: 2,
-    name: "Accessories",
-    description: "Computer and mobile accessories",
-    productCount: 24,
-  },
-  {
-    id: 3,
-    name: "Office Supplies",
-    description: "Essential supplies for office use",
-    productCount: 12,
-  },
-  {
-    id: 4,
-    name: "Furniture",
-    description: "Office desks, chairs and furniture",
-    productCount: 8,
-  },
-  {
-    id: 5,
-    name: "Storage Devices",
-    description: "External drives and storage products",
-    productCount: 9,
-  },
-];
-
 const emptyForm = {
   name: "",
   description: "",
 };
+
+function getCategoryError(err, fallback) {
+  if (err?.response?.status === 403) {
+    return "Access Denied: Only ADMIN can add, edit, or delete categories.";
+  }
+  if (err?.response?.status === 401) {
+    return "Session expired. Please sign in again.";
+  }
+  return (
+    err?.response?.data?.message ||
+    err?.response?.data?.error ||
+    err?.message ||
+    fallback
+  );
+}
+
 
 export default function Categories() {
   const [categories, setCategories] = useState([]);
@@ -62,22 +45,21 @@ export default function Categories() {
 
   const fetchCategories = useCallback(async () => {
     try {
-      const response = await api.get('/api/categories')
-      if (response.data.success) {
-        setCategories(response.data.data)
+      setError("");
+      const response = await api.get("/api/categories");
+      if (response.data?.success) {
+        setCategories(response.data.data || []);
+      } else {
+        setError(response.data?.message || "Unable to load categories.");
       }
-      else {
-        setError(response.data.message)
-      }
+    } catch (err) {
+      setError(getCategoryError(err, "Unable to connect to backend to load categories."));
     }
-    catch (err) {
-      setError(err.response.data.message)
-    }
-  })
+  }, []);
 
-  useEffect(() => {
+  useState(()=>{
     fetchCategories()
-  }, [])
+  },[])
 
 
 
@@ -110,6 +92,8 @@ export default function Categories() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    setFormError("");
+    setError("");
 
     const name = form.name.trim();
     const description = form.description.trim();
@@ -118,98 +102,70 @@ export default function Categories() {
       setFormError("Category name is required.");
       return;
     }
-
-    const duplicate = categories.some(
-      (category) =>
-        category.name.toLowerCase() === name.toLowerCase() &&
-        category.id !== editingId
-    );
-
-    if (duplicate) {
-      setFormError("A category with this name already exists.");
+    if (!description) {
+      setFormError("Category description is required.");
       return;
     }
 
-    if (editingId !== null) {
-      try {
-        const data = {
+    try {
+      if (editingId !== null) {
+        const response = await api.put("/api/categories", {
           id: editingId,
           name,
-          description
-        }
-        const response = await api.put('/api/categories', data)
-        if (response.data.success) {
+          description,
+        });
+        if (response.data?.success) {
           setCategories((prev) =>
-            prev.map((category) =>
-              category.id == editingId
-                ? { ...category, ...response.data.data } : category)
-          )
+            prev.map((cat) =>
+              cat.id === editingId ? { ...cat, ...response.data.data } : cat
+            )
+          );
+          setShowForm(false);
+          setForm(emptyForm);
+          setEditingId(null);
+        } else {
+          setFormError(response.data?.message || "Unable to update category.");
         }
-        else {
-          setError(response.data.message)
-        }
-      }
-      catch (err) {
-        setError(
-          err.response.data.message
-        )
-      }
-    } else {
-      try {
-        const data = {
-          name,
-          description
-        }
-        const response = await api.post('/api/categories', data)
-        if (response.data.success) {
-          setCategories((prev) => [...prev, response.data.data])
-        }
-        else {
-          setError(response.data.message)
+      } else {
+        const response = await api.post("/api/categories", { name, description });
+        if (response.data?.success) {
+          setCategories((prev) => [
+            ...prev,
+            { productsVariety: 0, ...response.data.data },
+          ]);
+          setShowForm(false);
+          setForm(emptyForm);
+        } else {
+          setFormError(response.data?.message || "Unable to add category.");
         }
       }
-      catch (err) {
-        setError(err.response.data.message)
-      }
+    } catch (err) {
+      const msg = getCategoryError(err, "Unable to save category.");
+      setFormError(msg);
+      setError(msg);
     }
-
-    setShowForm(false);
-    setForm(emptyForm);
-    setEditingId(null);
-    setFormError("");
   };
 
   const handleDelete = async (category) => {
-    if (category.productsVariety > 0) {
-      window.alert(
-        "This category has products assigned to it. Remove those products from the category before deleting it."
+    if ((category.productsVariety ?? 0) > 0) {
+      setError(
+        `Cannot delete "${category.name}" because products are assigned to it.`
       );
       return;
     }
-
-    const confirmed = window.confirm(
-      `Delete category "${category.name}"?`
-    );
-
-    if (!confirmed) return;
-
     try {
-      const response = await api.delete(`/api/categories/${category.id}`)
-      if (response.data.success) {
+      setError("");
+      const response = await api.delete(`/api/categories/${category.id}`);
+      if (response.data?.success) {
         setCategories((current) =>
           current.filter((item) => item.id !== category.id)
         );
+      } else {
+        setError(response.data?.message || "Unable to delete category.");
       }
-      else {
-        setError(response.data.message)
-      }
+    } catch (err) {
+      setError(getCategoryError(err, "Unable to delete category."));
     }
-    catch (err) {
-      setError(
-        err.response.data.message
-      )
-    }
-
   };
 
   return (
@@ -225,26 +181,43 @@ export default function Categories() {
           <Plus size={17} />
           Add Category
         </button>
+        
       </div>
-      {error && (
-        <div className="error-message" role="alert">
-          <div className="error-message-content">
-            <AlertTriangle size={18} />
-            <div>
-              <strong>Action failed</strong>
-              <p>{error}</p>
-            </div>
-          </div>
+           {error && (
+        <div
+          role="alert"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "10px",
+            padding: "12px 16px",
+            marginBottom: "18px",
+            borderRadius: "8px",
+            background: "#fef2f2",
+            border: "1px solid #fecaca",
+            color: "#991b1b",
+            fontSize: "13px",
+            fontWeight: 500,
+          }}
+        >
+          <span>⚠️ {error}</span>
           <button
             type="button"
-            className="error-dismiss-btn"
             onClick={() => setError("")}
-            aria-label="Dismiss error"
+            style={{
+              border: "none",
+              background: "transparent",
+              color: "#991b1b",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
           >
-            <X size={16} />
+            Dismiss
           </button>
         </div>
       )}
+
 
       <section className="category-summary-grid">
         <article className="category-summary-card">
@@ -301,6 +274,7 @@ export default function Categories() {
               onChange={(event) => setSearch(event.target.value)}
             />
           </label>
+          
         </div>
 
         <div className="categories-table-scroll">
@@ -333,7 +307,7 @@ export default function Categories() {
 
                   <td>
                     <span className="category-product-count">
-                      {category.productsVariety} products veriety
+                      {category.productsVariety? `${category.productsVariety}` :"0"} Products Veriety
                     </span>
                   </td>
 

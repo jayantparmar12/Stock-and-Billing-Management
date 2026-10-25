@@ -38,6 +38,24 @@ function formatDateTime(value) {
   });
 }
 
+function getRefundErrorMessage(err, fallback) {
+  if (err?.response?.status === 403) {
+    return "Access Denied: You do not have permission to view refunds.";
+  }
+  if (err?.response?.status === 401) {
+    return "Session expired. Please sign in again.";
+  }
+  if (typeof err?.response?.data === "string" && err.response.data.trim()) {
+    return err.response.data;
+  }
+  return (
+    err?.response?.data?.message ||
+    err?.response?.data?.error ||
+    err?.message ||
+    fallback
+  );
+}
+
 function normalizeRefund(raw, fallbackBill) {
   const billObj = raw.bill || fallbackBill || {};
   const customerObj = billObj.customer || {};
@@ -97,6 +115,23 @@ export default function Refunds() {
           ? api.get("/api/refunds")
           : api.get(`/api/bill/${selectedBillId}/refunds`),
       ]);
+
+        if (billsRes.status === "rejected" && directRefundsRes.status === "rejected") {
+        setError(
+          getRefundErrorMessage(
+            billsRes.reason || directRefundsRes.reason,
+            "Unable to load refunds from backend."
+          )
+        );
+      } else if (
+        directRefundsRes.status === "fulfilled" &&
+        directRefundsRes.value.data &&
+        !directRefundsRes.value.data.success
+      ) {
+        setError(
+          directRefundsRes.value.data.message || "Unable to load refunds."
+        );
+      }
 
       const allBills =
         billsRes.status === "fulfilled" &&

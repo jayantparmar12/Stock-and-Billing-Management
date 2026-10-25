@@ -19,23 +19,52 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     const status = error.response?.status;
-    const message = (error.response?.data?.message || "").toLowerCase();
+    const method = (error.config?.method || "get").toLowerCase();
+    const backendMsg =
+      error.response?.data?.message ||
+      error.response?.data?.error ||
+      (typeof error.response?.data === "string" ? error.response.data : "");
 
-    const isUnauthenticated =
+    if (
       status === 401 ||
-      (status === 403 && !localStorage.getItem("user")) ||
-      message.includes("user not found") ||
-      message.includes("not authenticated") ||
-      message.includes("jwt");
-
-    if (isUnauthenticated && window.location.pathname !== "/login") {
+      (status === 403 && method === "get") ||
+      (status === 403 && !localStorage.getItem("user"))
+    ) {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
-      window.location.href = "/login";
+      if (window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
+      return Promise.reject(error);
     }
+
+    let cleanMessage = backendMsg;
+    if (status === 403) {
+      cleanMessage =
+        "Access Denied: Only ADMIN has permission to perform this action.";
+    } else if (!cleanMessage) {
+      if (!error.response) {
+        cleanMessage =
+          "Backend server is not reachable (check if Spring Boot is running on port 8080).";
+      } else {
+        cleanMessage = `Request failed (${status})`;
+      }
+    }
+
+    error.message = cleanMessage;
+    if (!error.response) {
+      error.response = { data: { message: cleanMessage } };
+    } else if (
+      !error.response.data ||
+      typeof error.response.data !== "object"
+    ) {
+      error.response.data = { message: cleanMessage };
+    } else {
+      error.response.data.message = cleanMessage;
+    }
+
     return Promise.reject(error);
   }
 );
-
 
 export default api;

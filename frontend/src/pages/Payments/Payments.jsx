@@ -41,6 +41,15 @@ function formatDateTime(value) {
 }
 
 function getErrorMessage(err, fallback) {
+  if (err?.response?.status === 403) {
+    return "Access Denied: You do not have permission to perform this action.";
+  }
+  if (err?.response?.status === 401) {
+    return "Session expired. Please sign in again.";
+  }
+  if (typeof err?.response?.data === "string" && err.response.data.trim()) {
+    return err.response.data;
+  }
   return (
     err?.response?.data?.message ||
     err?.response?.data?.error ||
@@ -81,14 +90,28 @@ export default function Payments() {
         api.get("/api/payments"),
       ]);
 
-      const rawBills =
-        billsRes.status === "fulfilled" &&
-        billsRes.value.data?.success &&
-        Array.isArray(billsRes.value.data.data)
-          ? billsRes.value.data.data
-          : [];
+      if (billsRes.status === "rejected") {
+        setError(
+          getErrorMessage(
+            billsRes.reason,
+            "Unable to load bills and payments from backend."
+          )
+        );
+        setBillsWithMeta([]);
+        setPayments([]);
+        return;
+      }
 
-      // Map bills by ID for quick lookup
+      if (billsRes.value?.data && !billsRes.value.data.success) {
+        setError(
+          billsRes.value.data.message || "Unable to load bills and payments."
+        );
+      }
+
+      const rawBills = Array.isArray(billsRes.value?.data?.data)
+        ? billsRes.value.data.data
+        : [];
+
       const billMap = new Map();
       rawBills.forEach((b) => billMap.set(b.id, b));
 
@@ -101,7 +124,6 @@ export default function Payments() {
       ) {
         allPaymentsRaw = directPaymentsRes.value.data.data;
       } else {
-        // Fallback: fetch per-bill payments via /api/bill/{id}/payments
         const perBillPay = await Promise.allSettled(
           rawBills.map((b) =>
             api
@@ -118,7 +140,6 @@ export default function Payments() {
         });
       }
 
-      // Compute paid amount per bill
       const paidPerBill = new Map();
       allPaymentsRaw.forEach((p) => {
         const bId = p.bill?.id;
@@ -220,6 +241,7 @@ export default function Payments() {
       setLoading(false);
     }
   }, []);
+
 
   useEffect(() => {
     fetchPaymentsData();

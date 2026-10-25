@@ -105,7 +105,7 @@ export default function Auth() {
                   <User size={16} />
                   <input
                     type="text"
-                    placeholder="e.g. Jayant Parmar"
+                    placeholder="e.g. abc name"
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
                     required
@@ -136,7 +136,7 @@ export default function Auth() {
                     <Store size={16} />
                     <input
                       type="text"
-                      placeholder="e.g. Parmar Electronics"
+                      placeholder="e.g. random shop"
                       value={form.shopName}
                       onChange={(e) =>
                         setForm({ ...form, shopName: e.target.value })
@@ -152,7 +152,7 @@ export default function Auth() {
                     <KeyRound size={16} />
                     <input
                       type="text"
-                      placeholder="e.g. PARM-4821"
+                      placeholder="e.g. random shop"
                       value={form.shopCode}
                       onChange={(e) =>
                         setForm({ ...form, shopCode: e.target.value })
