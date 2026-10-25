@@ -14,25 +14,26 @@ import java.util.List;
 @RequiredArgsConstructor
 @RequestMapping("api/categories")
 public class CategoryController {
+
     private final CategoryService categoryService;
 
     @GetMapping
-    public ApiResponse<List<Category>> getAllCategories() {
+    public ApiResponse<List<CategoryResponse>> getAllCategory() {
         return categoryService.getAllCategory();
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<Category> getCategory(@PathVariable Integer id) {
+    public ApiResponse<CategoryResponse> getCategoryById(@PathVariable Integer id) {
         return categoryService.getCategoryById(id);
     }
 
     @PostMapping
-    public ApiResponse<Category> addCategory(@Valid @RequestBody Category category) {
+    public ApiResponse<CategoryResponse> addCategory(@Valid @RequestBody Category category) {
         return categoryService.addCategory(category);
     }
 
     @PutMapping
-    public ApiResponse<Category> editCategory(@Valid @RequestBody Category category) {
+    public ApiResponse<CategoryResponse> editCategory(@Valid @RequestBody Category category) {
         return categoryService.editCategory(category);
     }
 
