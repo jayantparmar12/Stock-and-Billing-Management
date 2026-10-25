@@ -18,7 +18,17 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401 && window.location.pathname !== "/login") {
+    const status = error.response?.status;
+    const message = (error.response?.data?.message || "").toLowerCase();
+
+    const isUnauthenticated =
+      status === 401 ||
+      (status === 403 && !localStorage.getItem("user")) ||
+      message.includes("user not found") ||
+      message.includes("not authenticated") ||
+      message.includes("jwt");
+
+    if (isUnauthenticated && window.location.pathname !== "/login") {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
       window.location.href = "/login";
@@ -26,5 +36,6 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
 
 export default api;
