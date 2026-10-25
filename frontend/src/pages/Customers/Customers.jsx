@@ -1,196 +1,190 @@
-
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Search,
   Plus,
   Users,
-  UserRound,
   Pencil,
   Trash2,
+  Eye,
   X,
-  MapPin,
-  Mail,
   Phone,
-  AlertTriangle
-} from 'lucide-react';
-import './Customers.css';
-import api from '../../services/api'
-
-const initialCustomers = [
-  {
-    id: 1,
-    name: 'Rahul Sharma',
-    email: 'rahul@example.com',
-    phone: '9876543210',
-    address: 'Indore, Madhya Pradesh',
-  },
-  {
-    id: 2,
-    name: 'Priya Verma',
-    email: 'priya@example.com',
-    phone: '9876501234',
-    address: 'Bhopal, Madhya Pradesh',
-  },
-  {
-    id: 3,
-    name: 'Amit Patel',
-    email: 'amit@example.com',
-    phone: '9123456780',
-    address: 'Gwalior, Madhya Pradesh',
-  },
-  {
-    id: 4,
-    name: 'Neha Singh',
-    email: 'neha@example.com',
-    phone: '9988776655',
-    address: 'Jabalpur, Madhya Pradesh',
-  },
-];
+  Mail,
+  MapPin,
+  RefreshCw,
+  AlertTriangle,
+  ReceiptText,
+} from "lucide-react";
+import "./Customers.css";
+import api from "../../services/api";
 
 const emptyForm = {
-  name: '',
-  email: '',
-  phone: '',
-  address: '',
+  name: "",
+  phone: "",
+  email: "",
+  address: "",
 };
 
-function Customers() {
-  const [customers, setCustomers] = useState(initialCustomers);
-  const [search, setSearch] = useState('');
-  const [showModal, setShowModal] = useState(false);
+function formatCurrency(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return "₹0.00";
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 2,
+  }).format(num);
+}
+
+export default function Customers() {
+  const [customers, setCustomers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+
+  // Add / Edit Modal
+  const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
-  const [error, setError] = useState(false)
-  const [formError, setFormError] = useState('')
+  const [formError, setFormError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  const fetchCustomers = async () => {
+  // Customer Details & Bills History Modal (GET /api/bill/customer_id/{id})
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [customerBills, setCustomerBills] = useState([]);
+  const [billsLoading, setBillsLoading] = useState(false);
+
+  const fetchCustomers = useCallback(async () => {
     try {
-      const response = await api.get('/api/customers')
-      if (response.data.success) {
-        console.log(response)
-        setCustomers(response.data.data)
+      setLoading(true);
+      setError("");
+      const response = await api.get("/api/customers");
+      if (response.data?.success && Array.isArray(response.data.data)) {
+        setCustomers(response.data.data);
+      } else {
+        setError(response.data?.message || "Unable to load customers.");
       }
-      else {
-        setError(response.data.message)
-      }
-    }
-    catch (err) {
+    } catch (err) {
       setError(
-        err.response.data.message
-      )
+        err.response?.data?.message || "Unable to connect to backend."
+      );
+    } finally {
+      setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
-    fetchCustomers()
-  }, [])
+    fetchCustomers();
+  }, [fetchCustomers]);
 
-  const filteredCustomers = customers.filter((customer) =>
-    `${customer.name} ${customer.email} ${customer.phone} ${customer.address}`
-      .toLowerCase()
-      .includes(search.trim().toLowerCase())
-  );
+  const filteredCustomers = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return customers.filter(
+      (c) =>
+        !query ||
+        (c.name ?? "").toLowerCase().includes(query) ||
+        (c.phone ?? "").toLowerCase().includes(query) ||
+        (c.email ?? "").toLowerCase().includes(query) ||
+        (c.address ?? "").toLowerCase().includes(query)
+    );
+  }, [customers, search]);
 
-  const openAddModal = () => {
+  const openAddForm = () => {
     setEditingId(null);
     setForm(emptyForm);
-    setShowModal(true);
+    setFormError("");
+    setShowForm(true);
   };
 
-  const openEditModal = (customer) => {
+  const openEditForm = (customer, event) => {
+    if (event) event.stopPropagation();
     setEditingId(customer.id);
     setForm({
-      name: customer.name,
-      email: customer.email,
-      phone: customer.phone,
-      address: customer.address,
+      name: customer.name ?? "",
+      phone: customer.phone ?? "",
+      email: customer.email ?? "",
+      address: customer.address ?? "",
     });
-    setShowModal(true);
+    setFormError("");
+    setShowForm(true);
   };
 
-  const handleChange = async (event) => {
-    const { name, value } = event.target;
-    setForm((previous) => ({ ...previous, [name]: value }));
+  const openCustomerHistory = async (customer) => {
+    setSelectedCustomer(customer);
+    setBillsLoading(true);
+    try {
+      const response = await api.get(`/api/bill/customer_id/${customer.id}`);
+      if (response.data?.success && Array.isArray(response.data.data)) {
+        setCustomerBills(response.data.data);
+      } else {
+        setCustomerBills([]);
+      }
+    } catch {
+      setCustomerBills([]);
+    } finally {
+      setBillsLoading(false);
+    }
   };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    const name = form.name.trim();
+    const phone = form.phone.trim();
 
-    const value = form.phone
-
-    if(!/^\d{0,10}$/.test(value)){
-        setFormError("Please enter 10-digit valid phone number")
-        return;
-      }
-
-    if (editingId !== null) {
-      try {
-        const response = await api.put(`/api/customers/${editingId}`, form)
-        if (response.data.success) {
-          setCustomers((prev) =>
-            prev.map(customer => customer.id == editingId ? response.data.data : customer)
-          )
-        }
-        else{
-          setError(
-            response.data.message
-          )
-        }
-      }
-      catch (err) {
-        setError(
-          err.response.data.message
-        )
-      }
-    } else {
-      try {
-        const newCustomer = {
-          ...form
-        };
-        const response = await api.post('/api/customers', newCustomer)
-        if (response.data.success) {
-          setCustomers((prev) => [...prev, response.data.data])
-        }
-        else {
-          setError(response.data.message)
-        }
-      }
-      catch (err) {
-        setError(
-          err.response.data.message
-        )
-      }
+    if (!name || !phone) {
+      setFormError("Customer name and phone number are required.");
+      return;
     }
 
-    setShowModal(false);
-    setForm(emptyForm);
-    setEditingId(null);
+    try {
+      setSubmitting(true);
+      setFormError("");
+
+      if (editingId !== null) {
+        const response = await api.put("/api/customers", {
+          id: editingId,
+          name,
+          phone,
+          email: form.email.trim(),
+          address: form.address.trim(),
+        });
+        if (response.data?.success) {
+          setCustomers((prev) =>
+            prev.map((c) => (c.id === editingId ? response.data.data : c))
+          );
+          setShowForm(false);
+        }
+      } else {
+        const response = await api.post("/api/customers", {
+          name,
+          phone,
+          email: form.email.trim(),
+          address: form.address.trim(),
+        });
+        if (response.data?.success) {
+          setCustomers((prev) => [...prev, response.data.data]);
+          setShowForm(false);
+        }
+      }
+    } catch (err) {
+      setFormError(
+        err.response?.data?.message || "Unable to save customer."
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleDelete = async (id) => {
-    const confirmed = window.confirm(
-      'Are you sure you want to delete this customer?'
-    );
-
-    if (confirmed) {
-      try{
-        const response = await api.delete(`/api/customers/${id}`)
-        if(response.data.success){
-          setCustomers((prev)=>
-            prev.filter((customer)=> customer.id !== id)
-          )
-        }
-        else{
-          setError(
-            response.data.message
-          )
-        }
+  const handleDelete = async (customer, event) => {
+    if (event) event.stopPropagation();
+    try {
+      const response = await api.delete(`/api/customers/${customer.id}`);
+      if (response.data?.success) {
+        setCustomers((prev) => prev.filter((c) => c.id !== customer.id));
       }
-      catch(err){
-        setError(
-          err.response.data.message
-        )
-      }
+    } catch (err) {
+      setError(
+        err.response?.data?.message ||
+          "Cannot delete customer with existing bills."
+      );
     }
   };
 
@@ -199,274 +193,280 @@ function Customers() {
       <div className="customers-heading">
         <div>
           <h1>Customers</h1>
-          <p>Manage your customer information and contact details.</p>
+          <p>Manage your shop's customers and view their purchase history.</p>
         </div>
 
-        <button className="customer-primary-btn" onClick={openAddModal}>
-          <Plus size={18} />
-          Add Customer
-        </button>
-      </div>
-      {error && (
-        <div className="error-message" role="alert">
-          <div className="error-message-content">
-            <AlertTriangle size={18} />
-            <div>
-              <strong>Action failed</strong>
-              <p>{error}</p>
-            </div>
-          </div>
+        <div className="customers-heading-actions">
           <button
             type="button"
-            className="error-dismiss-btn"
-            onClick={() => setError("")}
-            aria-label="Dismiss error"
+            className="secondary-button"
+            onClick={fetchCustomers}
+            disabled={loading}
           >
-            <X size={16} />
+            <RefreshCw size={15} className={loading ? "spin-icon" : ""} />
+            Refresh
+          </button>
+
+          <button
+            type="button"
+            className="primary-button"
+            onClick={openAddForm}
+          >
+            <Plus size={16} />
+            Add Customer
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="customers-error" role="alert">
+          <AlertTriangle size={17} />
+          <span>{error}</span>
+          <button type="button" onClick={() => setError("")}>
+            Dismiss
           </button>
         </div>
       )}
 
-      <div className="customer-stats">
-        <div className="customer-stat-card">
-          <div className="customer-stat-icon blue">
-            <Users size={22} />
-          </div>
-          <div>
-            <p>Total Customers</p>
-            <h2>{customers.length}</h2>
-            <span>Customers in your records</span>
-          </div>
-        </div>
-
-        <div className="customer-stat-card">
-          <div className="customer-stat-icon purple">
-            <UserRound size={22} />
-          </div>
-          <div>
-            <p>Customer Records</p>
-            <h2>{filteredCustomers.length}</h2>
-            <span>Matching current search</span>
-          </div>
-        </div>
-      </div>
-
       <div className="customers-table-card">
-        <div className="customers-table-header">
+        <div className="customers-toolbar">
           <div>
-            <h3>All Customers</h3>
-            <p>View and manage your customers.</p>
+            <h3>Shop Customers ({filteredCustomers.length})</h3>
+            <p>Click any customer to view all bills linked to them.</p>
           </div>
 
-          <div className="customer-search">
-            <Search size={18} />
+          <label className="customers-search">
+            <Search size={16} />
             <input
-              type="text"
-              placeholder="Search customers, contact, address..."
+              type="search"
+              placeholder="Search by name, phone, email..."
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(e) => setSearch(e.target.value)}
             />
-          </div>
+          </label>
         </div>
 
-        <div className="customers-table-wrapper">
+        <div className="customers-table-wrap">
           <table className="customers-table">
             <thead>
               <tr>
-                <th>Customer</th>
-                <th>Contact</th>
-                <th>Address</th>
-                <th>Customer ID</th>
-                <th>Actions</th>
+                <th>ID</th>
+                <th>CUSTOMER NAME</th>
+                <th>PHONE</th>
+                <th>EMAIL</th>
+                <th>ADDRESS</th>
+                <th>ACTIONS</th>
               </tr>
             </thead>
-
             <tbody>
-              {filteredCustomers.map((customer) => (
-                <tr key={customer.id}>
-                  <td>
-                    <div className="customer-name-cell">
-                      <div className="customer-avatar">
-                        {customer.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <strong>{customer.name}</strong>
-                        <span>{customer.email || 'No email added'}</span>
-                      </div>
-                    </div>
-                  </td>
-
-                  <td>
-                    <div className="customer-contact-cell">
-                      <span>
-                        <Phone size={14} />
-                        {customer.phone || 'Not provided'}
-                      </span>
-                      <span>
-                        <Mail size={14} />
-                        {customer.email || 'Not provided'}
-                      </span>
-                    </div>
-                  </td>
-
-                  <td>
-                    <span className="customer-address">
-                      <MapPin size={15} />
-                      {customer.address || 'Not provided'}
-                    </span>
-                  </td>
-
-                  <td>
-                    <span className="customer-id">CUS-{customer.id}</span>
-                  </td>
-
-                  <td>
-                    <div className="customer-actions">
-                      <button
-                        className="customer-edit-btn"
-                        title="Edit customer"
-                        onClick={() => openEditModal(customer)}
-                      >
-                        <Pencil size={16} />
-                      </button>
-
-                      <button
-                        className="customer-delete-btn"
-                        title="Delete customer"
-                        onClick={() => handleDelete(customer.id)}
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
+              {loading ? (
+                <tr>
+                  <td colSpan="6" className="customers-empty">
+                    Loading customers...
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredCustomers.map((customer) => (
+                  <tr
+                    key={customer.id}
+                    className="customer-row"
+                    onClick={() => openCustomerHistory(customer)}
+                  >
+                    <td>#{customer.id}</td>
+                    <td>
+                      <div className="customer-name-cell">
+                        <div className="customer-avatar">
+                          <Users size={16} />
+                        </div>
+                        <strong>{customer.name}</strong>
+                      </div>
+                    </td>
+                    <td>
+                      <span className="customer-meta">
+                        <Phone size={13} /> {customer.phone || "—"}
+                      </span>
+                    </td>
+                    <td>
+                      <span className="customer-meta">
+                        <Mail size={13} /> {customer.email || "—"}
+                      </span>
+                    </td>
+                    <td>
+                      <span className="customer-meta">
+                        <MapPin size={13} /> {customer.address || "—"}
+                      </span>
+                    </td>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <div className="customer-actions">
+                        <button
+                          type="button"
+                          className="action-button view"
+                          title="View purchase history"
+                          onClick={() => openCustomerHistory(customer)}
+                        >
+                          <Eye size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          className="action-button edit"
+                          title="Edit customer"
+                          onClick={(e) => openEditForm(customer, e)}
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          className="action-button delete"
+                          title="Delete customer"
+                          onClick={(e) => handleDelete(customer, e)}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
 
-              {filteredCustomers.length === 0 && (
+              {!loading && filteredCustomers.length === 0 && (
                 <tr>
-                  <td colSpan="5" className="customers-empty">
-                    No customers found.
+                  <td colSpan="6" className="customers-empty">
+                    No customers found. Click "Add Customer" to create one.
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-
-        <div className="customers-table-footer">
-          Showing {filteredCustomers.length} of {customers.length} customers
-        </div>
       </div>
 
-      {showModal && (
+      {/* Add / Edit Customer Modal */}
+      {showForm && (
         <div
-          className="customer-modal-overlay"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              setShowModal(false);
-            }
-          }}
+          className="customer-modal-backdrop"
+          onClick={() => setShowForm(false)}
         >
           <div
             className="customer-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="customer-modal-title"
+            onClick={(e) => e.stopPropagation()}
           >
             <div className="customer-modal-header">
-              <div>
-                <h2 id="customer-modal-title">
-                  {editingId !== null ? 'Edit Customer' : 'Add Customer'}
-                </h2>
-                <p>
-                  Enter the customer's details below.
-                </p>
-              </div>
-
-              <button
-                className="customer-modal-close"
-                onClick={() => setShowModal(false)}
-                aria-label="Close modal"
-              >
-                <X size={20} />
+              <h2>{editingId ? "Edit Customer" : "Add Customer"}</h2>
+              <button type="button" onClick={() => setShowForm(false)}>
+                <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit}>
-              <div className="customer-form-group">
-                <label htmlFor="customer-name">Full Name *</label>
+            <form className="customer-form" onSubmit={handleSubmit}>
+              <label>
+                Customer Name *
                 <input
-                  id="customer-name"
-                  name="name"
                   value={form.name}
-                  onChange={handleChange}
-                  placeholder="Enter customer name"
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  placeholder="e.g. Rahul Sharma"
                   required
                 />
-              </div>
+              </label>
 
-              <div className="customer-form-group">
-                <label htmlFor="customer-email">Email</label>
+              <label>
+                Phone Number *
                 <input
-                  id="customer-email"
-                  name="email"
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  placeholder="e.g. 9876543210"
+                  required
+                />
+              </label>
+
+              <label>
+                Email Address
+                <input
                   type="email"
                   value={form.email}
-                  onChange={handleChange}
-                  placeholder="customer@example.com"
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  placeholder="rahul@example.com"
                 />
-              </div>
+              </label>
 
-              <div className="customer-form-group">
-                <label htmlFor="customer-phone">Phone Number *</label>
+              <label>
+                Address
                 <input
-                  id="customer-phone"
-                  name="phone"
-                  type="tel"
-                  value={form.phone}
-                  onChange={handleChange}
-                  placeholder="Enter phone number"
-                  required
-                />
-              </div>
-
-              <div className="customer-form-group">
-                <label htmlFor="customer-address">Address</label>
-                <textarea
-                  id="customer-address"
-                  name="address"
                   value={form.address}
-                  onChange={handleChange}
-                  placeholder="Enter customer address"
-                  rows="3"
+                  onChange={(e) =>
+                    setForm({ ...form, address: e.target.value })
+                  }
+                  placeholder="City / Street address"
                 />
-              </div>
+              </label>
 
-               {formError && (
-                <p className="product-form-error" role="alert">
-                  {formError}
-                </p>
-              )}
+              {formError && <p className="customer-form-error">{formError}</p>}
 
-              <div className="customer-modal-actions">
+              <div className="customer-form-actions">
                 <button
                   type="button"
-                  className="customer-cancel-btn"
-                  onClick={() => setShowModal(false)}
+                  className="secondary-button"
+                  onClick={() => setShowForm(false)}
                 >
                   Cancel
                 </button>
-
-                <button type="submit" className="customer-primary-btn">
-                  {editingId !== null ? 'Save Changes' : 'Add Customer'}
+                <button
+                  type="submit"
+                  className="primary-button"
+                  disabled={submitting}
+                >
+                  {submitting ? "Saving..." : "Save Customer"}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* Customer Purchase History Modal */}
+      {selectedCustomer && (
+        <div
+          className="customer-modal-backdrop"
+          onClick={() => setSelectedCustomer(null)}
+        >
+          <div
+            className="customer-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="customer-modal-header">
+              <div>
+                <h2>{selectedCustomer.name}</h2>
+                <p>Phone: {selectedCustomer.phone}</p>
+              </div>
+              <button type="button" onClick={() => setSelectedCustomer(null)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <h4 className="customer-bills-title">
+              <ReceiptText size={15} /> Bills History ({customerBills.length})
+            </h4>
+
+            {billsLoading ? (
+              <p className="customers-empty">Loading bills...</p>
+            ) : customerBills.length === 0 ? (
+              <p className="customers-empty">
+                No bills created for this customer yet.
+              </p>
+            ) : (
+              <ul className="customer-bills-list">
+                {customerBills.map((b) => (
+                  <li key={b.id}>
+                    <span>
+                      Bill #{b.id} ({b.items?.length || 0} items)
+                    </span>
+                    <strong>{formatCurrency(b.totalAmount)}</strong>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
-export default Customers;

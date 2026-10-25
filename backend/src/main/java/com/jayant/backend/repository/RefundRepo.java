@@ -6,5 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
 public interface RefundRepo extends JpaRepository<Refund, Integer> {
-    List<Refund> findByBillId(Integer id);
+    List<Refund> findByBillId(Integer billId);
+    List<Refund> findByBill_Shop_IdOrderByRefundDateDesc(Integer shopId);
 }

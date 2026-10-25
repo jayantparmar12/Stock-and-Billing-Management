@@ -12,11 +12,13 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("api/customers")
+@CrossOrigin(origins = "http://localhost:5173")
 public class CustomerController {
+
     private final CustomerService customerService;
 
     @GetMapping
-    public ApiResponse<List<Customer>> getCustomers() {
+    public ApiResponse<List<Customer>> getAllCustomers() {
         return customerService.getAllCustomers();
     }
 
@@ -30,13 +32,13 @@ public class CustomerController {
         return customerService.addCustomer(customer);
     }
 
+    @PutMapping
+    public ApiResponse<Customer> editCustomer(@Valid @RequestBody Customer customer) {
+        return customerService.editCustomer(customer);
+    }
+
     @DeleteMapping("/{id}")
     public ApiResponse<Void> deleteCustomer(@PathVariable Integer id) {
         return customerService.deleteCustomer(id);
-    }
-
-    @PutMapping("/{id}")
-    public ApiResponse<Customer> editCustomer(@PathVariable Integer id, @RequestBody Customer customer) {
-        return customerService.editCustomer(id, customer);
     }
 }
