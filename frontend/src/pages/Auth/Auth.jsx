@@ -1,6 +1,14 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Lock, Mail, User, ShieldCheck, AlertTriangle } from "lucide-react";
+import {
+  Lock,
+  Mail,
+  User,
+  ShieldCheck,
+  AlertTriangle,
+  Store,
+  KeyRound,
+} from "lucide-react";
 import api from "../../services/api";
 import "./Auth.css";
 
@@ -12,6 +20,8 @@ export default function Auth() {
     email: "",
     password: "",
     role: "ADMIN",
+    shopName: "",
+    shopCode: "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -29,6 +39,8 @@ export default function Auth() {
             email: form.email.trim(),
             password: form.password,
             role: form.role,
+            shopName: form.role === "ADMIN" ? form.shopName.trim() : "",
+            shopCode: form.role === "STAFF" ? form.shopCode.trim() : "",
           }
         : {
             email: form.email.trim(),
@@ -38,12 +50,13 @@ export default function Auth() {
       const response = await api.post(endpoint, payload);
 
       if (response.data?.success && response.data.data) {
-        const { token, id, name, email, role } = response.data.data;
+        const { token, id, name, email, role, shopId, shopName, shopCode } =
+          response.data.data;
 
         localStorage.setItem("token", token);
         localStorage.setItem(
           "user",
-          JSON.stringify({ id, name, email, role })
+          JSON.stringify({ id, name, email, role, shopId, shopName, shopCode })
         );
 
         navigate("/", { replace: true });
@@ -68,11 +81,11 @@ export default function Auth() {
           <div className="auth-logo-badge">
             <ShieldCheck size={24} />
           </div>
-          <h1>{isRegister ? "Create Account" : "Welcome Back"}</h1>
+          <h1>{isRegister ? "Register Your Shop / Staff" : "Welcome Back"}</h1>
           <p>
             {isRegister
-              ? "Register an Admin or Staff account for Inventory & Billing."
-              : "Sign in to access your Inventory & Billing dashboard."}
+              ? "Create a new Shop workspace as Admin or join an existing Shop using its Shop Code."
+              : "Sign in to access your shop's Inventory & Billing dashboard."}
           </p>
         </div>
 
@@ -85,19 +98,71 @@ export default function Auth() {
 
         <form className="auth-form" onSubmit={handleSubmit}>
           {isRegister && (
-            <label className="auth-field">
-              <span>Full Name</span>
-              <div className="auth-input-wrap">
-                <User size={16} />
-                <input
-                  type="text"
-                  placeholder="e.g. Jayant Parmar"
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  required
-                />
-              </div>
-            </label>
+            <>
+              <label className="auth-field">
+                <span>Full Name</span>
+                <div className="auth-input-wrap">
+                  <User size={16} />
+                  <input
+                    type="text"
+                    placeholder="e.g. Jayant Parmar"
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    required
+                  />
+                </div>
+              </label>
+
+              <label className="auth-field">
+                <span>Account Type (Role)</span>
+                <select
+                  className="auth-role-select"
+                  value={form.role}
+                  onChange={(e) => setForm({ ...form, role: e.target.value })}
+                >
+                  <option value="ADMIN">
+                    New Shop Owner (ADMIN — Creates New Shop)
+                  </option>
+                  <option value="STAFF">
+                    Shop Staff (STAFF — Joins Existing Shop via Code)
+                  </option>
+                </select>
+              </label>
+
+              {form.role === "ADMIN" ? (
+                <label className="auth-field">
+                  <span>Shop / Company Name</span>
+                  <div className="auth-input-wrap">
+                    <Store size={16} />
+                    <input
+                      type="text"
+                      placeholder="e.g. Parmar Electronics"
+                      value={form.shopName}
+                      onChange={(e) =>
+                        setForm({ ...form, shopName: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
+                </label>
+              ) : (
+                <label className="auth-field">
+                  <span>Enter Shop Code (Provided by your Admin)</span>
+                  <div className="auth-input-wrap">
+                    <KeyRound size={16} />
+                    <input
+                      type="text"
+                      placeholder="e.g. PARM-4821"
+                      value={form.shopCode}
+                      onChange={(e) =>
+                        setForm({ ...form, shopCode: e.target.value })
+                      }
+                      required
+                    />
+                  </div>
+                </label>
+              )}
+            </>
           )}
 
           <label className="auth-field">
@@ -129,25 +194,11 @@ export default function Auth() {
             </div>
           </label>
 
-          {isRegister && (
-            <label className="auth-field">
-              <span>Select Role</span>
-              <select
-                className="auth-role-select"
-                value={form.role}
-                onChange={(e) => setForm({ ...form, role: e.target.value })}
-              >
-                <option value="ADMIN">ADMIN (Full Access)</option>
-                <option value="STAFF">STAFF (Billing & View Only)</option>
-              </select>
-            </label>
-          )}
-
           <button type="submit" className="auth-submit-btn" disabled={loading}>
             {loading
               ? "Please wait..."
               : isRegister
-              ? "Create Account"
+              ? "Register Account"
               : "Sign In"}
           </button>
         </form>

@@ -20,4 +20,10 @@ public interface BillRepo extends JpaRepository<Bill, Integer> {
 
     @Query("SELECT COALESCE(SUM(b.paidAmount), 0) FROM Bill b WHERE b.status <> :status")
     BigDecimal sumOfPaidAmount(@Param("status") BillStatus status);
+
+    List<Bill> findByShopId(Integer shopId);
+    List<Bill> findByShopIdAndCustomerId(Integer shopId, Integer customerId);
+    List<Bill> findByShopIdAndBillDateBetween(Integer shopId, LocalDateTime start, LocalDateTime end);
+    List<Bill> findByShopIdAndCustomer_NameContainingIgnoreCase(Integer shopId, String name);
+
 }
