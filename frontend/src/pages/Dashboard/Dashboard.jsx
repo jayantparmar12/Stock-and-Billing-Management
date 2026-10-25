@@ -189,7 +189,7 @@ export default function Dashboard() {
         if (dashboardRes.status === "rejected") {
           const msg =
             dashboardRes.reason?.response?.data?.message ||
-            "Dashboard endpoint returned an error; showing calculated metrics from products and bills.";
+            "Something went wrong";
           setError(msg);
         }
       }
