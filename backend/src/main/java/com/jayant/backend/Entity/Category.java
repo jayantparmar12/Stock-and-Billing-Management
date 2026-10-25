@@ -16,7 +16,7 @@ public class Category {
     private String name;
     @NotBlank(message = "Category description is required")
     private String description;
-     
+
     @ManyToOne
     @JoinColumn(name = "shop_id", nullable = false)
     @JsonIgnore
