@@ -1,5 +1,6 @@
 package com.jayant.backend.Entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -22,4 +23,9 @@ public class Bill {
     @Enumerated(EnumType.STRING)
     private PaymentStatus paymentStatus = PaymentStatus.UNPAID;
     private BigDecimal paidAmount= BigDecimal.valueOf(0.0);
+
+    @ManyToOne
+    @JoinColumn(name = "shop_id", nullable = false)
+    @JsonIgnore
+    private Shop shop;
 }

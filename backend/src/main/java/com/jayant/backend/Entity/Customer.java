@@ -1,5 +1,6 @@
 package com.jayant.backend.Entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -26,4 +27,9 @@ public class Customer {
     @Email(message = "Invalid email format")
     private String email;
     private String address;
+
+    @ManyToOne
+    @JoinColumn(name = "shop_id", nullable = false)
+    @JsonIgnore
+    private Shop shop;
 }

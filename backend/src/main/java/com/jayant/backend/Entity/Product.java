@@ -1,5 +1,6 @@
 package com.jayant.backend.Entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -14,7 +15,6 @@ public class Product {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @Column(unique = true)
     @NotBlank(message = "product name is required")
     private String product;
 
@@ -27,4 +27,9 @@ public class Product {
     @JoinColumn(name="category_id")
     @NotNull(message = "Category is Required")
     private Category category;
+
+    @ManyToOne
+    @JoinColumn(name = "shop_id", nullable = false)
+    @JsonIgnore
+    private Shop shop;
 }
