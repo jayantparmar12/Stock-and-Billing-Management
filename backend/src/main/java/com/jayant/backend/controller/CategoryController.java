@@ -17,7 +17,7 @@ public class CategoryController {
     private final CategoryService categoryService;
 
     @GetMapping
-    public ApiResponse<List<CategoryResponse>> getAllCategories() {
+    public ApiResponse<List<Category>> getAllCategories() {
         return categoryService.getAllCategory();
     }
 
@@ -27,12 +27,12 @@ public class CategoryController {
     }
 
     @PostMapping
-    public ApiResponse<CategoryResponse> addCategory(@Valid @RequestBody Category category) {
+    public ApiResponse<Category> addCategory(@Valid @RequestBody Category category) {
         return categoryService.addCategory(category);
     }
 
     @PutMapping
-    public ApiResponse<CategoryResponse> editCategory(@Valid @RequestBody Category category) {
+    public ApiResponse<Category> editCategory(@Valid @RequestBody Category category) {
         return categoryService.editCategory(category);
     }
 

@@ -81,55 +81,73 @@ export default function Refunds() {
   // Filters
   const [search, setSearch] = useState("");
   const [billFilter, setBillFilter] = useState("ALL");
-  const [typeFilter, setTypeFilter] = useState("ALL"); // ALL | FULL | PARTIAL
+  const [typeFilter, setTypeFilter] = useState("ALL");
 
   // Modal State
   const [selectedRefund, setSelectedRefund] = useState(null);
 
-  // Fetch all bills from GET /api/bill, then fetch each bill's refunds via GET /api/bill/{id}/refunds
   const fetchAllRefunds = useCallback(async (selectedBillId = "ALL") => {
     try {
       setLoading(true);
       setError("");
 
-      const billsRes = await api.get("/api/bill");
-      if (!billsRes.data?.success || !Array.isArray(billsRes.data.data)) {
-        setError(billsRes.data?.message || "Unable to load bills for refunds.");
-        setLoading(false);
-        return;
-      }
+      const [billsRes, directRefundsRes] = await Promise.allSettled([
+        api.get("/api/bill"),
+        selectedBillId === "ALL"
+          ? api.get("/api/refunds")
+          : api.get(`/api/bill/${selectedBillId}/refunds`),
+      ]);
 
-      const allBills = billsRes.data.data;
+      const allBills =
+        billsRes.status === "fulfilled" &&
+        billsRes.value.data?.success &&
+        Array.isArray(billsRes.value.data.data)
+          ? billsRes.value.data.data
+          : [];
       setBills(allBills);
 
-      const targetBills =
-        selectedBillId === "ALL"
-          ? allBills
-          : allBills.filter((b) => String(b.id) === String(selectedBillId));
+      const billMap = new Map();
+      allBills.forEach((b) => billMap.set(b.id, b));
 
-      const refundResponses = await Promise.allSettled(
-        targetBills.map((bill) =>
-          api
-            .get(`/api/bill/${bill.id}/refunds`)
-            .then((res) => ({ bill, data: res.data }))
-        )
-      );
+      let collectedRefunds = [];
 
-      const collectedRefunds = [];
-      refundResponses.forEach((result) => {
-        if (
-          result.status === "fulfilled" &&
-          result.value.data?.success &&
-          Array.isArray(result.value.data.data)
-        ) {
-          const { bill, data } = result.value;
-          data.data.forEach((entry) => {
-            collectedRefunds.push(normalizeRefund(entry, bill));
-          });
-        }
-      });
+      if (
+        directRefundsRes.status === "fulfilled" &&
+        directRefundsRes.value.data?.success &&
+        Array.isArray(directRefundsRes.value.data.data)
+      ) {
+        collectedRefunds = directRefundsRes.value.data.data.map((entry) =>
+          normalizeRefund(entry, billMap.get(entry.bill?.id))
+        );
+      } else {
+        // Fallback: fetch per-bill via /api/bill/{id}/refunds
+        const targetBills =
+          selectedBillId === "ALL"
+            ? allBills
+            : allBills.filter((b) => String(b.id) === String(selectedBillId));
 
-      // Sort newest first by refundDate (and id descending)
+        const refundResponses = await Promise.allSettled(
+          targetBills.map((bill) =>
+            api
+              .get(`/api/bill/${bill.id}/refunds`)
+              .then((res) => ({ bill, data: res.data }))
+          )
+        );
+
+        refundResponses.forEach((result) => {
+          if (
+            result.status === "fulfilled" &&
+            result.value.data?.success &&
+            Array.isArray(result.value.data.data)
+          ) {
+            const { bill, data } = result.value;
+            data.data.forEach((entry) => {
+              collectedRefunds.push(normalizeRefund(entry, bill));
+            });
+          }
+        });
+      }
+
       collectedRefunds.sort((a, b) => {
         const timeA = a.refundDate ? new Date(a.refundDate).getTime() : 0;
         const timeB = b.refundDate ? new Date(b.refundDate).getTime() : 0;
@@ -157,7 +175,6 @@ export default function Refunds() {
     fetchAllRefunds(value);
   };
 
-  // Filtered Refunds
   const filteredRefunds = useMemo(() => {
     const query = search.trim().toLowerCase();
 
@@ -166,8 +183,6 @@ export default function Refunds() {
         !query ||
         item.refundCode.toLowerCase().includes(query) ||
         item.billCode.toLowerCase().includes(query) ||
-        String(item.id).includes(query) ||
-        String(item.billId).includes(query) ||
         item.customerName.toLowerCase().includes(query) ||
         item.customerContact.toLowerCase().includes(query);
 
@@ -180,7 +195,6 @@ export default function Refunds() {
     });
   }, [refunds, search, typeFilter]);
 
-  // Summary Stats
   const stats = useMemo(() => {
     const totalRefundedAmount = filteredRefunds.reduce(
       (sum, item) => sum + item.amount,
@@ -211,9 +225,7 @@ export default function Refunds() {
       <div className="refunds-heading">
         <div>
           <h1>Refunds</h1>
-          <p>
-            Track all customer refunds generated from cancelled bills.
-          </p>
+          <p>Track all customer refunds generated from cancelled bills.</p>
         </div>
 
         <div className="refunds-heading-actions">
@@ -243,7 +255,6 @@ export default function Refunds() {
         </div>
       )}
 
-      {/* 4 Summary Stat Cards */}
       <div className="refunds-stats">
         <div className="refund-stat-card">
           <div className="refund-stat-icon blue">
@@ -320,7 +331,6 @@ export default function Refunds() {
           <select
             value={billFilter}
             onChange={(event) => handleBillFilterChange(event.target.value)}
-            aria-label="Filter refunds by bill"
           >
             <option value="ALL">All Bills ({bills.length})</option>
             {bills.map((bill) => (
@@ -333,7 +343,6 @@ export default function Refunds() {
           <select
             value={typeFilter}
             onChange={(event) => setTypeFilter(event.target.value)}
-            aria-label="Filter by refund coverage"
           >
             <option value="ALL">All Refund Types</option>
             <option value="FULL">Full Bill Refund</option>
@@ -418,7 +427,6 @@ export default function Refunds() {
                       <button
                         type="button"
                         className="refund-view-btn"
-                        title="View refund details"
                         onClick={() => setSelectedRefund(item)}
                       >
                         <Eye size={16} />
@@ -431,8 +439,7 @@ export default function Refunds() {
               {!loading && filteredRefunds.length === 0 && (
                 <tr>
                   <td colSpan="9" className="refunds-empty">
-                    No refunds found. Refunds are created automatically when a
-                    bill with a paid amount &gt; ₹0 is cancelled.
+                    No refunds found for your shop.
                   </td>
                 </tr>
               )}
@@ -446,7 +453,6 @@ export default function Refunds() {
         </div>
       </div>
 
-      {/* Refund Details Modal */}
       {selectedRefund && (
         <div
           className="refund-modal-overlay"
@@ -469,7 +475,6 @@ export default function Refunds() {
                 type="button"
                 className="refund-modal-close"
                 onClick={() => setSelectedRefund(null)}
-                aria-label="Close modal"
               >
                 <X size={18} />
               </button>
@@ -497,12 +502,6 @@ export default function Refunds() {
                 <span>Customer</span>
                 <strong>{selectedRefund.customerName}</strong>
               </div>
-              {selectedRefund.customerContact && (
-                <div>
-                  <span>Customer Contact</span>
-                  <strong>{selectedRefund.customerContact}</strong>
-                </div>
-              )}
               <div>
                 <span>Original Bill Total</span>
                 <strong>{formatCurrency(selectedRefund.billTotal)}</strong>
@@ -516,22 +515,6 @@ export default function Refunds() {
                 <strong>{selectedRefund.reason}</strong>
               </div>
             </div>
-
-            {selectedRefund.items.length > 0 && (
-              <div className="refund-items-box">
-                <h4>Cancelled Bill Items ({selectedRefund.items.length})</h4>
-                <ul>
-                  {selectedRefund.items.map((item, idx) => (
-                    <li key={idx}>
-                      <span>
-                        {item.productName} × {item.quantity}
-                      </span>
-                      <strong>{formatCurrency(item.itemTotal)}</strong>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
 
             <button
               type="button"

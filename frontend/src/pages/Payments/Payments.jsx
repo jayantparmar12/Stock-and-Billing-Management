@@ -59,77 +59,84 @@ export default function Payments() {
   // Filters
   const [search, setSearch] = useState("");
   const [billFilter, setBillFilter] = useState("ALL");
-  const [statusFilter, setStatusFilter] = useState("ALL"); // ALL | PAID | PARTIAL
+  const [statusFilter, setStatusFilter] = useState("ALL");
 
-  // Payment Detail Modal State
+  // Payment Detail Modal
   const [selectedPayment, setSelectedPayment] = useState(null);
 
-  // Record New Payment Modal State (PATCH /api/bill/bill_id/{id}/payment)
+  // Record New Payment Modal
   const [showRecordModal, setShowRecordModal] = useState(false);
   const [selectedBillIdForPay, setSelectedBillIdForPay] = useState("");
   const [paymentAmountInput, setPaymentAmountInput] = useState("");
   const [paymentError, setPaymentError] = useState("");
   const [paymentSubmitting, setPaymentSubmitting] = useState(false);
 
-  // Fetch all bills and each bill's payments + refunds
   const fetchPaymentsData = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
 
-      const billsRes = await api.get("/api/bill");
-      if (!billsRes.data?.success || !Array.isArray(billsRes.data.data)) {
-        setError(billsRes.data?.message || "Unable to load bills.");
-        setLoading(false);
-        return;
+      const [billsRes, directPaymentsRes] = await Promise.allSettled([
+        api.get("/api/bill"),
+        api.get("/api/payments"),
+      ]);
+
+      const rawBills =
+        billsRes.status === "fulfilled" &&
+        billsRes.value.data?.success &&
+        Array.isArray(billsRes.value.data.data)
+          ? billsRes.value.data.data
+          : [];
+
+      // Map bills by ID for quick lookup
+      const billMap = new Map();
+      rawBills.forEach((b) => billMap.set(b.id, b));
+
+      let allPaymentsRaw = [];
+
+      if (
+        directPaymentsRes.status === "fulfilled" &&
+        directPaymentsRes.value.data?.success &&
+        Array.isArray(directPaymentsRes.value.data.data)
+      ) {
+        allPaymentsRaw = directPaymentsRes.value.data.data;
+      } else {
+        // Fallback: fetch per-bill payments via /api/bill/{id}/payments
+        const perBillPay = await Promise.allSettled(
+          rawBills.map((b) =>
+            api
+              .get(`/api/bill/${b.id}/payments`)
+              .then((r) => ({ bill: b, list: r.data?.data || [] }))
+          )
+        );
+        perBillPay.forEach((res) => {
+          if (res.status === "fulfilled" && Array.isArray(res.value.list)) {
+            res.value.list.forEach((p) =>
+              allPaymentsRaw.push({ ...p, bill: p.bill || res.value.bill })
+            );
+          }
+        });
       }
 
-      const rawBills = billsRes.data.data;
+      // Compute paid amount per bill
+      const paidPerBill = new Map();
+      allPaymentsRaw.forEach((p) => {
+        const bId = p.bill?.id;
+        if (bId !== undefined) {
+          paidPerBill.set(
+            bId,
+            (paidPerBill.get(bId) || 0) + Number(p.amount ?? 0)
+          );
+        }
+      });
 
-      const perBillResults = await Promise.allSettled(
-        rawBills.map(async (bill) => {
-          const [payRes, refRes] = await Promise.allSettled([
-            api.get(`/api/bill/${bill.id}/payments`),
-            api.get(`/api/bill/${bill.id}/refunds`),
-          ]);
-
-          const payList =
-            payRes.status === "fulfilled" &&
-            payRes.value.data?.success &&
-            Array.isArray(payRes.value.data.data)
-              ? payRes.value.data.data
-              : [];
-
-          const refList =
-            refRes.status === "fulfilled" &&
-            refRes.value.data?.success &&
-            Array.isArray(refRes.value.data.data)
-              ? refRes.value.data.data
-              : [];
-
-          return { bill, payList, refList };
-        })
-      );
-
-      const enrichedBills = [];
-      const allPayments = [];
-
-      perBillResults.forEach((result) => {
-        if (result.status !== "fulfilled") return;
-        const { bill, payList, refList } = result.value;
-
+      const enrichedBills = rawBills.map((bill) => {
         const totalAmount = Number(bill.totalAmount ?? 0);
-        const totalPaidFromLogs = payList.reduce(
-          (sum, p) => sum + Number(p.amount ?? 0),
-          0
-        );
         const paidAmount =
           bill.paidAmount !== undefined && bill.paidAmount !== null
             ? Number(bill.paidAmount)
-            : totalPaidFromLogs;
-
-        const isCancelled =
-          bill.status === "CANCELLED" || refList.length > 0;
+            : paidPerBill.get(bill.id) || 0;
+        const isCancelled = bill.status === "CANCELLED";
         const remaining = isCancelled
           ? 0
           : Math.max(0, totalAmount - paidAmount);
@@ -146,17 +153,10 @@ export default function Payments() {
         }
 
         const customerName =
-          bill.customer?.name ??
-          bill.customer?.customerName ??
-          `Customer (Bill #${bill.id})`;
-        const customerContact =
-          bill.customer?.phone ??
-          bill.customer?.mobile ??
-          bill.customer?.phoneNumber ??
-          bill.customer?.email ??
-          "";
+          bill.customer?.name ?? `Customer (Bill #${bill.id})`;
+        const customerContact = bill.customer?.phone ?? "";
 
-        const billMeta = {
+        return {
           id: bill.id,
           billCode: `BILL-${String(bill.id).padStart(4, "0")}`,
           billDate: bill.billDate,
@@ -167,35 +167,43 @@ export default function Payments() {
           remaining,
           status: isCancelled ? "CANCELLED" : "ACTIVE",
           paymentStatus,
-          items: Array.isArray(bill.items) ? bill.items : [],
         };
-
-        enrichedBills.push(billMeta);
-
-        payList.forEach((pay) => {
-          const payId = pay.id ?? 0;
-          const amount = Number(pay.amount ?? 0);
-
-          allPayments.push({
-            id: payId,
-            transactionCode: `PAY-${String(payId).padStart(4, "0")}`,
-            billId: bill.id,
-            billCode: billMeta.billCode,
-            customerName,
-            customerContact,
-            amount,
-            paymentDate: pay.paymentDate ?? pay.createdAt ?? bill.billDate,
-            billTotal: totalAmount,
-            billPaidAmount: paidAmount,
-            billRemaining: remaining,
-            billPaymentStatus: paymentStatus,
-            billStatus: billMeta.status,
-          });
-        });
       });
 
-      // Sort payments newest first by paymentDate (and id descending)
-      allPayments.sort((a, b) => {
+      const enrichedBillMap = new Map();
+      enrichedBills.forEach((b) => enrichedBillMap.set(b.id, b));
+
+      const formattedPayments = allPaymentsRaw.map((pay) => {
+        const bId = pay.bill?.id ?? 0;
+        const bMeta = enrichedBillMap.get(bId) || {
+          id: bId,
+          billCode: `BILL-${String(bId).padStart(4, "0")}`,
+          customerName: pay.bill?.customer?.name || `Customer (Bill #${bId})`,
+          customerContact: pay.bill?.customer?.phone || "",
+          totalAmount: Number(pay.bill?.totalAmount ?? 0),
+          paidAmount: Number(pay.bill?.paidAmount ?? pay.amount ?? 0),
+          remaining: 0,
+          paymentStatus: pay.bill?.paymentStatus || "PAID",
+          status: pay.bill?.status || "ACTIVE",
+        };
+
+        return {
+          id: pay.id,
+          transactionCode: `PAY-${String(pay.id ?? 0).padStart(4, "0")}`,
+          billId: bId,
+          billCode: bMeta.billCode,
+          customerName: bMeta.customerName,
+          customerContact: bMeta.customerContact,
+          amount: Number(pay.amount ?? 0),
+          paymentDate: pay.paymentDate,
+          billTotal: bMeta.totalAmount,
+          billPaidAmount: bMeta.paidAmount,
+          billRemaining: bMeta.remaining,
+          billPaymentStatus: bMeta.paymentStatus,
+        };
+      });
+
+      formattedPayments.sort((a, b) => {
         const timeA = a.paymentDate ? new Date(a.paymentDate).getTime() : 0;
         const timeB = b.paymentDate ? new Date(b.paymentDate).getTime() : 0;
         if (timeB !== timeA) return timeB - timeA;
@@ -205,7 +213,7 @@ export default function Payments() {
       setBillsWithMeta(
         enrichedBills.sort((a, b) => (b.id ?? 0) - (a.id ?? 0))
       );
-      setPayments(allPayments);
+      setPayments(formattedPayments);
     } catch (err) {
       setError(getErrorMessage(err, "Unable to load payments data."));
     } finally {
@@ -217,12 +225,9 @@ export default function Payments() {
     fetchPaymentsData();
   }, [fetchPaymentsData]);
 
-  // Bills that still have a pending balance (for "+ Record Payment" modal)
   const payableBills = useMemo(
     () =>
-      billsWithMeta.filter(
-        (b) => b.status === "ACTIVE" && b.remaining > 0
-      ),
+      billsWithMeta.filter((b) => b.status === "ACTIVE" && b.remaining > 0),
     [billsWithMeta]
   );
 
@@ -234,7 +239,6 @@ export default function Payments() {
     [payableBills, selectedBillIdForPay]
   );
 
-  // Filtered Payment Transactions
   const filteredPayments = useMemo(() => {
     const query = search.trim().toLowerCase();
 
@@ -243,8 +247,6 @@ export default function Payments() {
         !query ||
         item.transactionCode.toLowerCase().includes(query) ||
         item.billCode.toLowerCase().includes(query) ||
-        String(item.id).includes(query) ||
-        String(item.billId).includes(query) ||
         item.customerName.toLowerCase().includes(query) ||
         item.customerContact.toLowerCase().includes(query);
 
@@ -258,7 +260,6 @@ export default function Payments() {
     });
   }, [payments, search, billFilter, statusFilter]);
 
-  // Summary Metrics
   const stats = useMemo(() => {
     const totalCollected = payments.reduce((sum, p) => sum + p.amount, 0);
     const totalPending = billsWithMeta.reduce(
@@ -288,7 +289,6 @@ export default function Payments() {
     setShowRecordModal(true);
   };
 
-  // Submit Payment (PATCH /api/bill/bill_id/{id}/payment?payment=...)
   const handleRecordPaymentSubmit = async (event) => {
     event.preventDefault();
     if (!selectedPayableBill) {
@@ -328,13 +328,11 @@ export default function Payments() {
         setSuccessBanner(
           `Payment of ${formatCurrency(amount)} recorded for ${
             selectedPayableBill.billCode
-          } (${selectedPayableBill.customerName}).`
+          }.`
         );
         await fetchPaymentsData();
       } else {
-        setPaymentError(
-          response.data?.message || "Unable to record payment."
-        );
+        setPaymentError(response.data?.message || "Unable to record payment.");
       }
     } catch (err) {
       setPaymentError(getErrorMessage(err, "Unable to record payment."));
@@ -349,8 +347,8 @@ export default function Payments() {
         <div>
           <h1>Payments</h1>
           <p>
-            View all received bill payments and record partial or full
-            installments.
+            View all received bill payments for your shop and record partial or
+            full installments.
           </p>
         </div>
 
@@ -396,7 +394,6 @@ export default function Payments() {
         </div>
       )}
 
-      {/* 4 Summary Cards */}
       <div className="payments-stats">
         <div className="payments-stat-card">
           <div className="payments-stat-icon green">
@@ -470,7 +467,6 @@ export default function Payments() {
           <select
             value={billFilter}
             onChange={(event) => setBillFilter(event.target.value)}
-            aria-label="Filter payments by bill"
           >
             <option value="ALL">All Bills</option>
             {billsWithMeta.map((b) => (
@@ -483,7 +479,6 @@ export default function Payments() {
           <select
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}
-            aria-label="Filter by bill payment status"
           >
             <option value="ALL">All Bill Statuses</option>
             <option value="PAID">Fully Paid Bills (PAID)</option>
@@ -567,7 +562,6 @@ export default function Payments() {
                       <button
                         type="button"
                         className="payment-view-btn"
-                        title="View payment details"
                         onClick={() => setSelectedPayment(item)}
                       >
                         <Eye size={16} />
@@ -580,8 +574,7 @@ export default function Payments() {
               {!loading && filteredPayments.length === 0 && (
                 <tr>
                   <td colSpan="7" className="payments-empty">
-                    No payment records match your filters. Click "Record
-                    Payment" above to add a payment for an unpaid bill.
+                    No payment records found for your shop.
                   </td>
                 </tr>
               )}
@@ -618,7 +611,6 @@ export default function Payments() {
                 type="button"
                 className="payment-modal-close"
                 onClick={() => setSelectedPayment(null)}
-                aria-label="Close modal"
               >
                 <X size={18} />
               </button>
@@ -683,7 +675,7 @@ export default function Payments() {
         </div>
       )}
 
-      {/* Record New Payment Modal (PATCH /api/bill/bill_id/{id}/payment) */}
+      {/* Record New Payment Modal */}
       {showRecordModal && (
         <div
           className="payment-modal-overlay"
@@ -703,7 +695,6 @@ export default function Payments() {
                 type="button"
                 className="payment-modal-close"
                 onClick={() => setShowRecordModal(false)}
-                aria-label="Close modal"
               >
                 <X size={18} />
               </button>
@@ -711,7 +702,7 @@ export default function Payments() {
 
             {payableBills.length === 0 ? (
               <div className="payments-empty">
-                All active bills are already fully paid!
+                All active bills in your shop are already fully paid!
               </div>
             ) : (
               <form onSubmit={handleRecordPaymentSubmit}>

@@ -45,9 +45,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/bill/cancell_bill/**").hasRole("ADMIN")
 
                         // 3. Shared ADMIN + STAFF Operations (Viewing, Billing, Stock Adjust, Payments, Dashboard)
-                        .requestMatchers("/api/products/**", "/api/categories/**", "/api/bill/**", "/api/customers/**", "/api/dashboard/**").hasAnyRole("ADMIN", "STAFF")
-
-                        // 4. All other endpoints require authentication
+                        .requestMatchers("/api/products/**", "/api/categories/**", "/api/bill/**", "/api/customers/**",
+                                "/api/dashboard/**", "/api/payments/**", "/api/refunds/**").hasAnyRole("ADMIN", "STAFF")
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
