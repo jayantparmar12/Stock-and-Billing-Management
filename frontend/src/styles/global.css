@@ -1,37 +1,176 @@
 
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
 
-:root {
-  font-family: "Inter", sans-serif;
-  color: #263247;
-  background: #f6f8fb;
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
+html,
 body {
   margin: 0;
-  min-width: 320px;
+  padding: 0;
+  width: 100%;
+  overflow-x: hidden;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    sans-serif;
+  background: #f8fafc;
+  color: #1e293b;
+}
+
+/* MainLayout Wrapper Responsiveness */
+.app-layout,
+.main-layout {
+  display: flex;
   min-height: 100vh;
+  width: 100%;
+  overflow-x: hidden;
 }
 
-button,
-input,
-select,
-textarea {
-  font: inherit;
+.main-content,
+.content-area,
+main {
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
-button {
-  cursor: pointer;
+/* Ensure all table wrappers scroll smoothly on small screens */
+.table-wrapper,
+.products-table-wrap,
+.categories-table-wrap,
+.customers-table-wrap,
+.billing-table-wrap,
+.payments-table-wrapper,
+.refunds-table-wrapper,
+.stock-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
-a {
-  color: inherit;
+/* Laptop & Tablet Breakpoint (<= 1100px) */
+@media (max-width: 1100px) {
+  .stats-grid,
+  .payments-stats,
+  .refunds-stats,
+  .products-stats,
+  .categories-stats,
+  .billing-stats,
+  .stock-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 14px !important;
+  }
+
+  .dashboard-charts,
+  .dashboard-bottom,
+  .billing-workspace,
+  .billing-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+/* Tablet & Large Phone Breakpoint (<= 768px) */
+@media (max-width: 768px) {
+  main,
+  .page-content,
+  .dashboard,
+  .products-page,
+  .categories-page,
+  .customers-page,
+  .billing-page,
+  .payments-page,
+  .refunds-page,
+  .stock-history-page {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+
+  /* Page Headings Stack Cleanly */
+  .dashboard-heading,
+  .products-heading,
+  .categories-heading,
+  .customers-heading,
+  .billing-heading,
+  .payments-heading,
+  .refunds-heading,
+  .stock-heading {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+
+  .dashboard-heading-controls,
+  .products-heading-actions,
+  .categories-heading-actions,
+  .customers-heading-actions,
+  .billing-heading-actions,
+  .payments-heading-actions,
+  .refunds-heading-actions {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* Filter & Search Toolbars Stack 100% Width */
+  .payments-filters,
+  .refunds-filters,
+  .products-toolbar,
+  .categories-toolbar,
+  .customers-toolbar,
+  .billing-toolbar,
+  .stock-toolbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+
+  .payments-search,
+  .refunds-search,
+  .customers-search,
+  .products-search,
+  .categories-search,
+  .billing-search,
+  .payments-filters select,
+  .refunds-filters select {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+
+/* Mobile Phone Breakpoint (<= 540px) */
+@media (max-width: 540px) {
+  .stats-grid,
+  .payments-stats,
+  .refunds-stats,
+  .products-stats,
+  .categories-stats,
+  .billing-stats,
+  .stock-stats {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  /* Modals fit mobile screens with comfortable padding */
+  .payment-modal,
+  .refund-modal,
+  .customer-modal,
+  .product-modal,
+  .category-modal,
+  .bill-modal,
+  .logout-modal-card,
+  .sidebar-logout-modal {
+    width: 100% !important;
+    max-width: calc(100vw - 24px) !important;
+    padding: 18px !important;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  h1 {
+    font-size: 21px !important;
+  }
 }
