@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Clock,
   ReceiptText,
+  RotateCcw,
   Eye,
   Plus,
   X,
@@ -41,15 +42,6 @@ function formatDateTime(value) {
 }
 
 function getErrorMessage(err, fallback) {
-  if (err?.response?.status === 403) {
-    return "Access Denied: You do not have permission to perform this action.";
-  }
-  if (err?.response?.status === 401) {
-    return "Session expired. Please sign in again.";
-  }
-  if (typeof err?.response?.data === "string" && err.response.data.trim()) {
-    return err.response.data;
-  }
   return (
     err?.response?.data?.message ||
     err?.response?.data?.error ||
@@ -59,8 +51,7 @@ function getErrorMessage(err, fallback) {
 }
 
 export default function Payments() {
-  const [billsWithMeta, setBillsWithMeta] = useState([]);
-  const [payments, setPayments] = useState([]);
+  const [paymentRows, setPaymentRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [successBanner, setSuccessBanner] = useState("");
@@ -71,7 +62,7 @@ export default function Payments() {
   const [statusFilter, setStatusFilter] = useState("ALL");
 
   // Payment Detail Modal
-  const [selectedPayment, setSelectedPayment] = useState(null);
+  const [selectedRecord, setSelectedRecord] = useState(null);
 
   // Record New Payment Modal
   const [showRecordModal, setShowRecordModal] = useState(false);
@@ -85,38 +76,30 @@ export default function Payments() {
       setLoading(true);
       setError("");
 
-      const [billsRes, directPaymentsRes] = await Promise.allSettled([
-        api.get("/api/bill"),
-        api.get("/api/payments"),
-      ]);
+      const [billsRes, directPaymentsRes, refundsRes] =
+        await Promise.allSettled([
+          api.get("/api/bill"),
+          api.get("/api/payments"),
+          api.get("/api/refunds"),
+        ]);
 
       if (billsRes.status === "rejected") {
         setError(
           getErrorMessage(
             billsRes.reason,
-            "Unable to load bills and payments from backend."
+            "Unable to load payments data from backend."
           )
         );
-        setBillsWithMeta([]);
-        setPayments([]);
+        setPaymentRows([]);
         return;
-      }
-
-      if (billsRes.value?.data && !billsRes.value.data.success) {
-        setError(
-          billsRes.value.data.message || "Unable to load bills and payments."
-        );
       }
 
       const rawBills = Array.isArray(billsRes.value?.data?.data)
         ? billsRes.value.data.data
         : [];
 
-      const billMap = new Map();
-      rawBills.forEach((b) => billMap.set(b.id, b));
-
+      // 1. Collect all payments (from /api/payments or fallback per-bill /api/bill/{id}/payments)
       let allPaymentsRaw = [];
-
       if (
         directPaymentsRes.status === "fulfilled" &&
         directPaymentsRes.value.data?.success &&
@@ -140,101 +123,148 @@ export default function Payments() {
         });
       }
 
-      const paidPerBill = new Map();
+      // Group payment installments by billId
+      const paymentsByBillId = new Map();
       allPaymentsRaw.forEach((p) => {
         const bId = p.bill?.id;
-        if (bId !== undefined) {
-          paidPerBill.set(
-            bId,
-            (paidPerBill.get(bId) || 0) + Number(p.amount ?? 0)
-          );
+        if (bId !== undefined && bId !== null) {
+          const key = Number(bId);
+          if (!paymentsByBillId.has(key)) {
+            paymentsByBillId.set(key, []);
+          }
+          paymentsByBillId.get(key).push({
+            id: p.id,
+            code: `PAY-${String(p.id ?? 0).padStart(4, "0")}`,
+            amount: Number(p.amount ?? 0),
+            paymentDate: p.paymentDate,
+          });
         }
       });
 
-      const enrichedBills = rawBills.map((bill) => {
+      // 2. Collect all refunds (from /api/refunds or fallback per-bill /api/bill/{id}/refunds)
+      let allRefundsRaw = [];
+      if (
+        refundsRes.status === "fulfilled" &&
+        refundsRes.value.data?.success &&
+        Array.isArray(refundsRes.value.data.data)
+      ) {
+        allRefundsRaw = refundsRes.value.data.data;
+      } else {
+        const perBillRef = await Promise.allSettled(
+          rawBills.map((b) =>
+            api
+              .get(`/api/bill/${b.id}/refunds`)
+              .then((r) => ({ bill: b, list: r.data?.data || [] }))
+          )
+        );
+        perBillRef.forEach((res) => {
+          if (res.status === "fulfilled" && Array.isArray(res.value.list)) {
+            res.value.list.forEach((r) =>
+              allRefundsRaw.push({ ...r, bill: r.bill || res.value.bill })
+            );
+          }
+        });
+      }
+
+      const refundsByBillId = new Map();
+      allRefundsRaw.forEach((r) => {
+        const bId = r.bill?.id;
+        if (bId !== undefined && bId !== null) {
+          const key = Number(bId);
+          const prev = refundsByBillId.get(key) || {
+            amount: 0,
+            refundDate: null,
+            refundCode: `REF-${String(r.id ?? 0).padStart(4, "0")}`,
+          };
+          refundsByBillId.set(key, {
+            amount: prev.amount + Number(r.amount ?? 0),
+            refundDate: r.refundDate || prev.refundDate,
+            refundCode: `REF-${String(r.id ?? 0).padStart(4, "0")}`,
+          });
+        }
+      });
+
+      // 3. Build unified payment records (one complete row per bill showing Paid, Refunded, Due & Unpaid!)
+      const unifiedRows = rawBills.map((bill) => {
+        const bId = Number(bill.id);
+        const billInstallments = (paymentsByBillId.get(bId) || []).sort(
+          (a, b) => Number(b.id ?? 0) - Number(a.id ?? 0)
+        );
+        const sumInstallments = billInstallments.reduce(
+          (sum, item) => sum + item.amount,
+          0
+        );
+
         const totalAmount = Number(bill.totalAmount ?? 0);
         const paidAmount =
           bill.paidAmount !== undefined && bill.paidAmount !== null
-            ? Number(bill.paidAmount)
-            : paidPerBill.get(bill.id) || 0;
-        const isCancelled = bill.status === "CANCELLED";
+            ? Math.max(Number(bill.paidAmount), sumInstallments)
+            : sumInstallments;
+
+        const refundMeta = refundsByBillId.get(bId);
+        const isCancelled =
+          String(bill.status || "").toUpperCase() === "CANCELLED" ||
+          Boolean(refundMeta);
+
+        const refundedAmount = isCancelled
+          ? refundMeta?.amount || paidAmount
+          : 0;
+
         const remaining = isCancelled
           ? 0
           : Math.max(0, totalAmount - paidAmount);
 
-        let paymentStatus = bill.paymentStatus;
-        if (!paymentStatus) {
-          if (paidAmount >= totalAmount && totalAmount > 0) {
-            paymentStatus = "PAID";
-          } else if (paidAmount > 0) {
-            paymentStatus = "PARTIAL";
-          } else {
-            paymentStatus = "UNPAID";
-          }
+        // Unified status:
+        // - REFUNDED: Bill cancelled / refund processed
+        // - PAID: Active bill, fully paid (remaining === 0)
+        // - PARTIAL: Active bill, paid > 0 && remaining > 0
+        // - UNPAID: Active bill, paid === 0
+        let ledgerStatus = "UNPAID";
+        if (isCancelled) {
+          ledgerStatus = "REFUNDED";
+        } else if (paidAmount >= totalAmount && totalAmount > 0) {
+          ledgerStatus = "PAID";
+        } else if (paidAmount > 0) {
+          ledgerStatus = "PARTIAL";
+        } else {
+          ledgerStatus = "UNPAID";
         }
 
-        const customerName =
-          bill.customer?.name ?? `Customer (Bill #${bill.id})`;
-        const customerContact = bill.customer?.phone ?? "";
+        const latestPayment = billInstallments[0] || null;
+        const primaryCode =
+          billInstallments.length > 0
+            ? latestPayment.code
+            : isCancelled && refundMeta?.refundCode
+            ? refundMeta.refundCode
+            : "NO-PAYMENT";
+
+        const activityDate =
+          refundMeta?.refundDate ||
+          latestPayment?.paymentDate ||
+          bill.billDate ||
+          null;
 
         return {
-          id: bill.id,
-          billCode: `BILL-${String(bill.id).padStart(4, "0")}`,
-          billDate: bill.billDate,
-          customerName,
-          customerContact,
+          billId: bId,
+          billCode: `BILL-${String(bId).padStart(4, "0")}`,
+          primaryCode,
+          installmentsCount: billInstallments.length,
+          installments: billInstallments,
+          customerName: bill.customer?.name ?? `Customer (Bill #${bId})`,
+          customerContact: bill.customer?.phone ?? "",
           totalAmount,
           paidAmount,
+          refundedAmount,
           remaining,
+          activityDate,
+          billDate: bill.billDate,
           status: isCancelled ? "CANCELLED" : "ACTIVE",
-          paymentStatus,
+          ledgerStatus, // "PAID" | "PARTIAL" | "UNPAID" | "REFUNDED"
         };
       });
 
-      const enrichedBillMap = new Map();
-      enrichedBills.forEach((b) => enrichedBillMap.set(b.id, b));
-
-      const formattedPayments = allPaymentsRaw.map((pay) => {
-        const bId = pay.bill?.id ?? 0;
-        const bMeta = enrichedBillMap.get(bId) || {
-          id: bId,
-          billCode: `BILL-${String(bId).padStart(4, "0")}`,
-          customerName: pay.bill?.customer?.name || `Customer (Bill #${bId})`,
-          customerContact: pay.bill?.customer?.phone || "",
-          totalAmount: Number(pay.bill?.totalAmount ?? 0),
-          paidAmount: Number(pay.bill?.paidAmount ?? pay.amount ?? 0),
-          remaining: 0,
-          paymentStatus: pay.bill?.paymentStatus || "PAID",
-          status: pay.bill?.status || "ACTIVE",
-        };
-
-        return {
-          id: pay.id,
-          transactionCode: `PAY-${String(pay.id ?? 0).padStart(4, "0")}`,
-          billId: bId,
-          billCode: bMeta.billCode,
-          customerName: bMeta.customerName,
-          customerContact: bMeta.customerContact,
-          amount: Number(pay.amount ?? 0),
-          paymentDate: pay.paymentDate,
-          billTotal: bMeta.totalAmount,
-          billPaidAmount: bMeta.paidAmount,
-          billRemaining: bMeta.remaining,
-          billPaymentStatus: bMeta.paymentStatus,
-        };
-      });
-
-      formattedPayments.sort((a, b) => {
-        const timeA = a.paymentDate ? new Date(a.paymentDate).getTime() : 0;
-        const timeB = b.paymentDate ? new Date(b.paymentDate).getTime() : 0;
-        if (timeB !== timeA) return timeB - timeA;
-        return Number(b.id ?? 0) - Number(a.id ?? 0);
-      });
-
-      setBillsWithMeta(
-        enrichedBills.sort((a, b) => (b.id ?? 0) - (a.id ?? 0))
-      );
-      setPayments(formattedPayments);
+      unifiedRows.sort((a, b) => (b.billId ?? 0) - (a.billId ?? 0));
+      setPaymentRows(unifiedRows);
     } catch (err) {
       setError(getErrorMessage(err, "Unable to load payments data."));
     } finally {
@@ -242,72 +272,97 @@ export default function Payments() {
     }
   }, []);
 
-
   useEffect(() => {
     fetchPaymentsData();
   }, [fetchPaymentsData]);
 
+  // Bills that can accept a new payment (ACTIVE & remaining > 0)
   const payableBills = useMemo(
     () =>
-      billsWithMeta.filter((b) => b.status === "ACTIVE" && b.remaining > 0),
-    [billsWithMeta]
+      paymentRows.filter((row) => row.status === "ACTIVE" && row.remaining > 0),
+    [paymentRows]
   );
 
   const selectedPayableBill = useMemo(
     () =>
       payableBills.find(
-        (b) => String(b.id) === String(selectedBillIdForPay)
+        (b) => String(b.billId) === String(selectedBillIdForPay)
       ) || null,
     [payableBills, selectedBillIdForPay]
   );
 
-  const filteredPayments = useMemo(() => {
+  // Filtered rows in the single unified Payments table
+  const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    return payments.filter((item) => {
+    return paymentRows.filter((row) => {
       const matchesSearch =
         !query ||
-        item.transactionCode.toLowerCase().includes(query) ||
-        item.billCode.toLowerCase().includes(query) ||
-        item.customerName.toLowerCase().includes(query) ||
-        item.customerContact.toLowerCase().includes(query);
+        row.billCode.toLowerCase().includes(query) ||
+        row.primaryCode.toLowerCase().includes(query) ||
+        String(row.billId).includes(query) ||
+        row.customerName.toLowerCase().includes(query) ||
+        row.customerContact.toLowerCase().includes(query);
 
       const matchesBill =
-        billFilter === "ALL" || String(item.billId) === String(billFilter);
+        billFilter === "ALL" || String(row.billId) === String(billFilter);
 
       const matchesStatus =
-        statusFilter === "ALL" || item.billPaymentStatus === statusFilter;
+        statusFilter === "ALL" || row.ledgerStatus === statusFilter;
 
       return matchesSearch && matchesBill && matchesStatus;
     });
-  }, [payments, search, billFilter, statusFilter]);
+  }, [paymentRows, search, billFilter, statusFilter]);
 
+  // Summary Stats
   const stats = useMemo(() => {
-    const totalCollected = payments.reduce((sum, p) => sum + p.amount, 0);
-    const totalPending = billsWithMeta.reduce(
-      (sum, b) => sum + (b.status === "ACTIVE" ? b.remaining : 0),
+    const activeCollected = paymentRows.reduce(
+      (sum, r) => sum + (r.status === "ACTIVE" ? r.paidAmount : 0),
       0
     );
-    const paidBillsCount = billsWithMeta.filter(
-      (b) => b.status === "ACTIVE" && b.paymentStatus === "PAID"
+    const totalPending = paymentRows.reduce(
+      (sum, r) => sum + (r.status === "ACTIVE" ? r.remaining : 0),
+      0
+    );
+    const totalRefunded = paymentRows.reduce(
+      (sum, r) => sum + r.refundedAmount,
+      0
+    );
+
+    const paidCount = paymentRows.filter(
+      (r) => r.ledgerStatus === "PAID"
     ).length;
-    const pendingBillsCount = payableBills.length;
+    const partialCount = paymentRows.filter(
+      (r) => r.ledgerStatus === "PARTIAL"
+    ).length;
+    const unpaidCount = paymentRows.filter(
+      (r) => r.ledgerStatus === "UNPAID"
+    ).length;
+    const refundedCount = paymentRows.filter(
+      (r) => r.ledgerStatus === "REFUNDED"
+    ).length;
 
     return {
-      totalCollected,
+      activeCollected,
       totalPending,
-      totalTransactions: payments.length,
-      paidBillsCount,
-      pendingBillsCount,
+      totalRefunded,
+      paidCount,
+      partialCount,
+      unpaidCount,
+      refundedCount,
     };
-  }, [payments, billsWithMeta, payableBills]);
+  }, [paymentRows]);
 
-  const openRecordPaymentModal = () => {
+  const openRecordPaymentModal = (preselectedBillId) => {
     setPaymentError("");
     setPaymentAmountInput("");
-    setSelectedBillIdForPay(
-      payableBills.length > 0 ? String(payableBills[0].id) : ""
-    );
+    if (preselectedBillId) {
+      setSelectedBillIdForPay(String(preselectedBillId));
+    } else {
+      setSelectedBillIdForPay(
+        payableBills.length > 0 ? String(payableBills[0].billId) : ""
+      );
+    }
     setShowRecordModal(true);
   };
 
@@ -338,7 +393,7 @@ export default function Payments() {
       setPaymentError("");
 
       const response = await api.patch(
-        `/api/bill/bill_id/${selectedPayableBill.id}/payment`,
+        `/api/bill/bill_id/${selectedPayableBill.billId}/payment`,
         null,
         {
           params: { payment: amount },
@@ -363,14 +418,59 @@ export default function Payments() {
     }
   };
 
+  const renderStatusBadge = (ledgerStatus) => {
+    if (ledgerStatus === "PAID") {
+      return (
+        <span className="payment-status completed">
+          <span className="payment-status-dot" />
+          PAID (Full Paid)
+        </span>
+      );
+    }
+    if (ledgerStatus === "PARTIAL") {
+      return (
+        <span className="payment-status pending">
+          <span className="payment-status-dot" />
+          PARTIAL (Due Left)
+        </span>
+      );
+    }
+    if (ledgerStatus === "REFUNDED") {
+      return (
+        <span
+          className="payment-status"
+          style={{ background: "#f3e8ff", color: "#7e22ce" }}
+        >
+          <span
+            className="payment-status-dot"
+            style={{ background: "#7e22ce" }}
+          />
+          REFUNDED
+        </span>
+      );
+    }
+    return (
+      <span
+        className="payment-status"
+        style={{ background: "#fef2f2", color: "#dc2626" }}
+      >
+        <span
+          className="payment-status-dot"
+          style={{ background: "#dc2626" }}
+        />
+        UNPAID (₹0 Paid)
+      </span>
+    );
+  };
+
   return (
     <div className="payments-page">
       <div className="payments-heading">
         <div>
           <h1>Payments</h1>
           <p>
-            View all received bill payments for your shop and record partial or
-            full installments.
+            Track who paid, how much is pending, who hasn&apos;t paid yet, and
+            who took a refund.
           </p>
         </div>
 
@@ -388,7 +488,7 @@ export default function Payments() {
           <button
             type="button"
             className="payments-record-btn"
-            onClick={openRecordPaymentModal}
+            onClick={() => openRecordPaymentModal()}
           >
             <Plus size={16} />
             Record Payment
@@ -396,22 +496,12 @@ export default function Payments() {
         </div>
       </div>
 
-     {error && (
-        <div className="error-message" role="alert">
-          <div className="error-message-content">
-            <AlertTriangle size={18} />
-            <div>
-              <strong>Action failed</strong>
-              <p>{error}</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            className="error-dismiss-btn"
-            onClick={() => setError("")}
-            aria-label="Dismiss error"
-          >
-            <X size={16} />
+      {error && (
+        <div className="payments-error-banner" role="alert">
+          <AlertTriangle size={18} />
+          <span>{error}</span>
+          <button type="button" onClick={() => setError("")}>
+            Dismiss
           </button>
         </div>
       )}
@@ -426,15 +516,18 @@ export default function Payments() {
         </div>
       )}
 
+      {/* 4 Clear Summary Cards */}
       <div className="payments-stats">
         <div className="payments-stat-card">
           <div className="payments-stat-icon green">
             <IndianRupee size={20} />
           </div>
           <div>
-            <p>Total Collected</p>
-            <h2>{formatCurrency(stats.totalCollected)}</h2>
-            <span>Across {stats.totalTransactions} payments</span>
+            <p>Total Collected (Active)</p>
+            <h2>{formatCurrency(stats.activeCollected)}</h2>
+            <span>
+              {stats.paidCount} Fully Paid • {stats.partialCount} Partial
+            </span>
           </div>
         </div>
 
@@ -443,45 +536,55 @@ export default function Payments() {
             <Clock size={20} />
           </div>
           <div>
-            <p>Pending Bill Balance</p>
+            <p>Remaining Balance (Baki)</p>
             <h2>{formatCurrency(stats.totalPending)}</h2>
-            <span>Across {stats.pendingBillsCount} unpaid/partial bills</span>
-          </div>
-        </div>
-
-        <div className="payments-stat-card">
-          <div className="payments-stat-icon blue">
-            <CreditCard size={20} />
-          </div>
-          <div>
-            <p>Total Transactions</p>
-            <h2>{stats.totalTransactions}</h2>
-            <span>Recorded payment entries</span>
+            <span>
+              {stats.unpaidCount} Unpaid • {stats.partialCount} Partial Bills
+            </span>
           </div>
         </div>
 
         <div className="payments-stat-card">
           <div className="payments-stat-icon red">
+            <RotateCcw size={20} />
+          </div>
+          <div>
+            <p>Refunded Amount</p>
+            <h2>{formatCurrency(stats.totalRefunded)}</h2>
+            <span>Across {stats.refundedCount} cancelled/refunded bills</span>
+          </div>
+        </div>
+
+        <div className="payments-stat-card">
+          <div className="payments-stat-icon blue">
             <ReceiptText size={20} />
           </div>
           <div>
-            <p>Paid vs Pending Bills</p>
+            <p>Payment Status Summary</p>
             <h2>
-              {stats.paidBillsCount} Paid / {stats.pendingBillsCount} Due
+              {stats.paidCount} Paid / {stats.unpaidCount + stats.partialCount}{" "}
+              Due
             </h2>
-            <span>Active bill settlement status</span>
+            <span>
+              {stats.unpaidCount} Unpaid • {stats.partialCount} Partial •{" "}
+              {stats.refundedCount} Refunded
+            </span>
           </div>
         </div>
       </div>
 
+      {/* Single Unified Payments Table */}
       <div className="payments-table-card">
         <div className="payments-table-heading">
           <div>
-            <h3>Payment Transactions</h3>
-            <p>Every full or partial payment recorded against a customer bill.</p>
+            <h3>Customer Payment Records</h3>
+            <p>
+              Complete payment status of every customer bill — Paid, Partial,
+              Unpaid, and Refunded.
+            </p>
           </div>
           <span className="payments-count-badge">
-            {filteredPayments.length} transactions
+            {filteredRows.length} records
           </span>
         </div>
 
@@ -490,7 +593,7 @@ export default function Payments() {
             <Search size={17} />
             <input
               type="search"
-              placeholder="Search by Payment ID, Bill ID, or customer..."
+              placeholder="Search by Customer, Bill ID (BILL-0001), or Payment ID..."
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
@@ -500,10 +603,10 @@ export default function Payments() {
             value={billFilter}
             onChange={(event) => setBillFilter(event.target.value)}
           >
-            <option value="ALL">All Bills</option>
-            {billsWithMeta.map((b) => (
-              <option key={b.id} value={String(b.id)}>
-                {b.billCode} — {b.customerName}
+            <option value="ALL">All Bills ({paymentRows.length})</option>
+            {paymentRows.map((r) => (
+              <option key={r.billId} value={String(r.billId)}>
+                {r.billCode} — {r.customerName} ({r.ledgerStatus})
               </option>
             ))}
           </select>
@@ -512,9 +615,11 @@ export default function Payments() {
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}
           >
-            <option value="ALL">All Bill Statuses</option>
-            <option value="PAID">Fully Paid Bills (PAID)</option>
-            <option value="PARTIAL">Partially Paid Bills (PARTIAL)</option>
+            <option value="ALL">All Payment Statuses</option>
+            <option value="PAID">Fully Paid (Pura Pay Kiya)</option>
+            <option value="PARTIAL">Partially Paid (Kuch Baki Hai)</option>
+            <option value="UNPAID">Unpaid (Bilkul Pay Nahi Kiya)</option>
+            <option value="REFUNDED">Refunded (Refund Liya)</option>
           </select>
         </div>
 
@@ -522,12 +627,14 @@ export default function Payments() {
           <table className="payments-table">
             <thead>
               <tr>
-                <th>Transaction</th>
+                <th>Payment / Bill</th>
                 <th>Customer</th>
                 <th>Bill Total</th>
-                <th>Payment Date</th>
-                <th>Amount Paid</th>
-                <th>Bill Status</th>
+                <th>Paid Amount</th>
+                <th>Refunded</th>
+                <th>Remaining (Baki)</th>
+                <th>Date</th>
+                <th>Status</th>
                 <th>Action</th>
               </tr>
             </thead>
@@ -535,78 +642,138 @@ export default function Payments() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="7" className="payments-empty">
-                    Loading payment transactions...
+                  <td colSpan="9" className="payments-empty">
+                    Loading payment records...
                   </td>
                 </tr>
               ) : (
-                filteredPayments.map((item) => (
+                filteredRows.map((row) => (
                   <tr
-                    key={item.id}
+                    key={row.billId}
                     className="payment-row"
-                    onClick={() => setSelectedPayment(item)}
+                    onClick={() => setSelectedRecord(row)}
                   >
                     <td>
                       <div className="payment-transaction">
-                        <strong>{item.transactionCode}</strong>
-                        <span>Linked to {item.billCode}</span>
+                        <strong>
+                          {row.primaryCode === "NO-PAYMENT"
+                            ? row.billCode
+                            : row.primaryCode}
+                        </strong>
+                        <span>
+                          {row.primaryCode === "NO-PAYMENT"
+                            ? "No payment recorded yet"
+                            : `Linked to ${row.billCode}${
+                                row.installmentsCount > 1
+                                  ? ` (${row.installmentsCount} installments)`
+                                  : ""
+                              }`}
+                        </span>
                       </div>
                     </td>
 
                     <td>
                       <div className="payment-transaction">
                         <strong className="payment-customer">
-                          {item.customerName}
+                          {row.customerName}
                         </strong>
-                        {item.customerContact && (
-                          <span>{item.customerContact}</span>
+                        {row.customerContact && (
+                          <span>{row.customerContact}</span>
                         )}
                       </div>
                     </td>
 
-                    <td>{formatCurrency(item.billTotal)}</td>
+                    <td>
+                      <strong>{formatCurrency(row.totalAmount)}</strong>
+                    </td>
+
+                    <td
+                      className="payment-amount"
+                      style={{
+                        color:
+                          row.paidAmount > 0
+                            ? "#15803d"
+                            : "#94a3b8",
+                      }}
+                    >
+                      {row.paidAmount > 0
+                        ? `+${formatCurrency(row.paidAmount)}`
+                        : "₹0.00"}
+                    </td>
+
+                    <td
+                      style={{
+                        fontWeight: 700,
+                        color: row.refundedAmount > 0 ? "#7e22ce" : "#94a3b8",
+                      }}
+                    >
+                      {row.refundedAmount > 0
+                        ? `-${formatCurrency(row.refundedAmount)}`
+                        : "—"}
+                    </td>
+
+                    <td
+                      style={{
+                        fontWeight: 700,
+                        color: row.remaining > 0 ? "#dc2626" : "#64748b",
+                      }}
+                    >
+                      {formatCurrency(row.remaining)}
+                    </td>
 
                     <td className="payment-date">
                       <span className="payment-date-inline">
                         <Calendar size={13} />
-                        {formatDateTime(item.paymentDate)}
+                        {formatDateTime(row.activityDate)}
                       </span>
                     </td>
 
-                    <td className="payment-amount">
-                      +{formatCurrency(item.amount)}
-                    </td>
-
-                    <td>
-                      <span
-                        className={`payment-status ${
-                          item.billPaymentStatus === "PAID"
-                            ? "completed"
-                            : "pending"
-                        }`}
-                      >
-                        <span className="payment-status-dot" />
-                        {item.billPaymentStatus}
-                      </span>
-                    </td>
+                    <td>{renderStatusBadge(row.ledgerStatus)}</td>
 
                     <td onClick={(e) => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        className="payment-view-btn"
-                        onClick={() => setSelectedPayment(item)}
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                        }}
                       >
-                        <Eye size={16} />
-                      </button>
+                        {row.status === "ACTIVE" && row.remaining > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => openRecordPaymentModal(row.billId)}
+                            style={{
+                              padding: "6px 10px",
+                              borderRadius: "7px",
+                              border: "none",
+                              background: "#3563e9",
+                              color: "#ffffff",
+                              fontSize: "11px",
+                              fontWeight: 600,
+                              cursor: "pointer",
+                            }}
+                          >
+                            Pay Now
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="payment-view-btn"
+                          title="View full payment & refund details"
+                          onClick={() => setSelectedRecord(row)}
+                        >
+                          <Eye size={16} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
               )}
 
-              {!loading && filteredPayments.length === 0 && (
+              {!loading && filteredRows.length === 0 && (
                 <tr>
-                  <td colSpan="7" className="payments-empty">
-                    No payment records found for your shop.
+                  <td colSpan="9" className="payments-empty">
+                    No payment records match your filter.
                   </td>
                 </tr>
               )}
@@ -615,16 +782,16 @@ export default function Payments() {
         </div>
 
         <div className="payments-table-footer">
-          Showing {filteredPayments.length} of {payments.length} payment
-          transactions
+          Showing {filteredRows.length} of {paymentRows.length} customer payment
+          records
         </div>
       </div>
 
-      {/* Payment Details Modal */}
-      {selectedPayment && (
+      {/* Payment & Refund Details Modal */}
+      {selectedRecord && (
         <div
           className="payment-modal-overlay"
-          onClick={() => setSelectedPayment(null)}
+          onClick={() => setSelectedRecord(null)}
         >
           <div
             className="payment-modal"
@@ -632,77 +799,137 @@ export default function Payments() {
           >
             <div className="payment-modal-heading">
               <div>
-                <h2>Payment Details</h2>
+                <h2>Payment Summary</h2>
                 <p>
-                  {selectedPayment.transactionCode} •{" "}
-                  {selectedPayment.billCode}
+                  {selectedRecord.billCode} • {selectedRecord.customerName}
                 </p>
               </div>
 
               <button
                 type="button"
                 className="payment-modal-close"
-                onClick={() => setSelectedPayment(null)}
+                onClick={() => setSelectedRecord(null)}
               >
                 <X size={18} />
               </button>
             </div>
 
             <div className="payment-detail-amount">
-              <span>Amount Received</span>
-              <strong>{formatCurrency(selectedPayment.amount)}</strong>
-              <span
-                className={`payment-status ${
-                  selectedPayment.billPaymentStatus === "PAID"
-                    ? "completed"
-                    : "pending"
-                }`}
-              >
-                <span className="payment-status-dot" />
-                Bill is {selectedPayment.billPaymentStatus}
-              </span>
+              <span>Paid by Customer</span>
+              <strong>{formatCurrency(selectedRecord.paidAmount)}</strong>
+              {renderStatusBadge(selectedRecord.ledgerStatus)}
             </div>
 
             <div className="payment-detail-list">
               <div>
-                <span>Payment ID</span>
-                <strong>#{selectedPayment.id}</strong>
-              </div>
-              <div>
                 <span>Bill ID</span>
-                <strong>#{selectedPayment.billId}</strong>
+                <strong>{selectedRecord.billCode}</strong>
               </div>
               <div>
                 <span>Customer</span>
-                <strong>{selectedPayment.customerName}</strong>
-              </div>
-              <div>
-                <span>Payment Date & Time</span>
-                <strong>{formatDateTime(selectedPayment.paymentDate)}</strong>
+                <strong>{selectedRecord.customerName}</strong>
               </div>
               <div>
                 <span>Total Bill Amount</span>
-                <strong>{formatCurrency(selectedPayment.billTotal)}</strong>
+                <strong>{formatCurrency(selectedRecord.totalAmount)}</strong>
               </div>
               <div>
-                <span>Total Paid on Bill</span>
-                <strong>
-                  {formatCurrency(selectedPayment.billPaidAmount)}
+                <span>Amount Paid</span>
+                <strong style={{ color: "#15803d" }}>
+                  {formatCurrency(selectedRecord.paidAmount)}
                 </strong>
               </div>
               <div>
-                <span>Remaining Balance on Bill</span>
-                <strong>{formatCurrency(selectedPayment.billRemaining)}</strong>
+                <span>Refunded Amount</span>
+                <strong style={{ color: "#7e22ce" }}>
+                  {formatCurrency(selectedRecord.refundedAmount)}
+                </strong>
+              </div>
+              <div>
+                <span>Remaining Balance (Baki)</span>
+                <strong
+                  style={{
+                    color:
+                      selectedRecord.remaining > 0 ? "#dc2626" : "#334155",
+                  }}
+                >
+                  {formatCurrency(selectedRecord.remaining)}
+                </strong>
               </div>
             </div>
 
-            <button
-              type="button"
-              className="payment-close-btn"
-              onClick={() => setSelectedPayment(null)}
-            >
-              Close Details
-            </button>
+            {selectedRecord.installments.length > 0 && (
+              <div style={{ marginBottom: "18px" }}>
+                <p
+                  style={{
+                    margin: "0 0 8px",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    color: "#475569",
+                  }}
+                >
+                  Payment Installments ({selectedRecord.installments.length})
+                </p>
+                <div
+                  style={{
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "8px",
+                    overflow: "hidden",
+                  }}
+                >
+                  {selectedRecord.installments.map((inst) => (
+                    <div
+                      key={inst.id}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        padding: "9px 12px",
+                        borderBottom: "1px solid #f1f5f9",
+                        fontSize: "12px",
+                      }}
+                    >
+                      <span>
+                        <strong>{inst.code}</strong> •{" "}
+                        {formatDateTime(inst.paymentDate)}
+                      </span>
+                      <strong style={{ color: "#15803d" }}>
+                        +{formatCurrency(inst.amount)}
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: "10px" }}>
+              {selectedRecord.status === "ACTIVE" &&
+                selectedRecord.remaining > 0 && (
+                  <button
+                    type="button"
+                    className="payment-close-btn"
+                    onClick={() => {
+                      const bId = selectedRecord.billId;
+                      setSelectedRecord(null);
+                      openRecordPaymentModal(bId);
+                    }}
+                  >
+                    Pay Remaining ({formatCurrency(selectedRecord.remaining)})
+                  </button>
+                )}
+              <button
+                type="button"
+                className="payment-close-btn"
+                style={
+                  selectedRecord.status === "ACTIVE" &&
+                  selectedRecord.remaining > 0
+                    ? { background: "#64748b" }
+                    : undefined
+                }
+                onClick={() => setSelectedRecord(null)}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -751,7 +978,7 @@ export default function Payments() {
                     required
                   >
                     {payableBills.map((b) => (
-                      <option key={b.id} value={String(b.id)}>
+                      <option key={b.billId} value={String(b.billId)}>
                         {b.billCode} — {b.customerName} (Due:{" "}
                         {formatCurrency(b.remaining)})
                       </option>
@@ -774,7 +1001,7 @@ export default function Payments() {
                       </strong>
                     </div>
                     <div>
-                      <span>Remaining Due</span>
+                      <span>Remaining Due (Baki)</span>
                       <strong className="due-highlight">
                         {formatCurrency(selectedPayableBill.remaining)}
                       </strong>
