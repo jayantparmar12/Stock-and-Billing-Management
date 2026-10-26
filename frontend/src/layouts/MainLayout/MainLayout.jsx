@@ -10,7 +10,7 @@ export default function MainLayout() {
       <Sidebar />
 
       <div className="app-main">
-        {/* <Navbar /> */}
+        <Navbar />
 
         <main className="app-content">
           <Outlet />
