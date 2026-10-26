@@ -1,6 +1,8 @@
 package com.jayant.backend.DTO;
 
+import com.jayant.backend.Entity.BillStatus;
 import com.jayant.backend.Entity.Customer;
+import com.jayant.backend.Entity.PaymentStatus;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -13,5 +15,8 @@ public class BillResponse {
     private Customer customer;
     private LocalDateTime billDate;
     private BigDecimal totalAmount;
+    private BigDecimal paidAmount;
+    private BillStatus status;
+    private PaymentStatus paymentStatus;
     private List<BillItemResponse> items;
 }

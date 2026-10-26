@@ -289,6 +289,10 @@ public class BillService {
         billResponse.setBillDate(bill.getBillDate());
         billResponse.setCustomer(bill.getCustomer());
         billResponse.setTotalAmount(bill.getTotalAmount());
+        // FIX: Yeh 3 fields bhejna zaroori hai taaki Dashboard Graph, Billing, aur Payments ko CANCELLED/PAID status mile!
+        billResponse.setPaidAmount(bill.getPaidAmount() != null ? bill.getPaidAmount() : BigDecimal.ZERO);
+        billResponse.setStatus(bill.getStatus() != null ? bill.getStatus() : BillStatus.ACTIVE);
+        billResponse.setPaymentStatus(bill.getPaymentStatus() != null ? bill.getPaymentStatus() : PaymentStatus.UNPAID);
         billResponse.setItems(billItemResponses);
         return billResponse;
     }
