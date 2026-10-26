@@ -25,7 +25,7 @@ public class DashboardService {
         Integer shopId = currentUserService.getCurrentShopId();
 
         long totalProducts = productRepo.countByShopId(shopId);
-        long totalCustomers = customerRepo.count();
+        long totalCustomers = customerRepo.countByShopId(shopId);
         long lowStockProducts = productRepo.countByShopIdAndQuantityLessThan(shopId, 11);
 
         BigDecimal totalSales = billRepo.sumOfTotalAmountByShopId(shopId, BillStatus.CANCELLED);
