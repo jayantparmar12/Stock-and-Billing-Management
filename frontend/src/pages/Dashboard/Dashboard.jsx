@@ -48,6 +48,15 @@ function formatShortDate(value) {
   });
 }
 
+function toLocalDateKey(dateInput) {
+  const d = dateInput instanceof Date ? dateInput : new Date(dateInput);
+  if (Number.isNaN(d.getTime())) return null;
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function normalizeProduct(raw) {
   if (!raw) return null;
   const categoryName =
@@ -108,7 +117,6 @@ function StatCard({
 export default function Dashboard() {
   const navigate = useNavigate();
 
-  // Dashboard Summary State from GET /api/dashboard
   const [summary, setSummary] = useState({
     totalProducts: 0,
     totalCustomers: 0,
@@ -117,9 +125,9 @@ export default function Dashboard() {
     lowStockProducts: 0,
   });
 
-  // Live Products & Bills for Charts, Recent Bills & Top Products
   const [products, setProducts] = useState([]);
   const [bills, setBills] = useState([]);
+  const [refundedBillIds, setRefundedBillIds] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [rangeDays, setRangeDays] = useState(7); // 7 or 30 days
@@ -130,11 +138,13 @@ export default function Dashboard() {
       setLoading(true);
       setError("");
 
-      const [dashboardRes, productsRes, billsRes] = await Promise.allSettled([
-        api.get("/api/dashboard"),
-        api.get("/api/products"),
-        api.get("/api/bill"),
-      ]);
+      const [dashboardRes, productsRes, billsRes, refundsRes] =
+        await Promise.allSettled([
+          api.get("/api/dashboard"),
+          api.get("/api/products"),
+          api.get("/api/bill"),
+          api.get("/api/refunds"),
+        ]);
 
       let loadedProducts = [];
       if (
@@ -145,6 +155,21 @@ export default function Dashboard() {
         loadedProducts = productsRes.value.data.data.map(normalizeProduct);
         setProducts(loadedProducts);
       }
+
+      // Jin bills ka refund ho chuka hai unki IDs nikal lein
+      const refundedIds = new Set();
+      if (
+        refundsRes.status === "fulfilled" &&
+        refundsRes.value.data?.success &&
+        Array.isArray(refundsRes.value.data.data)
+      ) {
+        refundsRes.value.data.data.forEach((r) => {
+          if (r.bill?.id !== undefined && r.bill?.id !== null) {
+            refundedIds.add(Number(r.bill.id));
+          }
+        });
+      }
+      setRefundedBillIds(refundedIds);
 
       let loadedBills = [];
       if (
@@ -169,30 +194,6 @@ export default function Dashboard() {
           pendingPayments: Number(d.pendingPayments ?? 0),
           lowStockProducts: Number(d.lowStockProducts ?? 0),
         });
-      } else {
-        // Fallback computation if /api/dashboard fails (e.g. when DB has 0 bills and sum returns null)
-        const fallbackSales = loadedBills.reduce(
-          (sum, b) =>
-            b.status === "CANCELLED" ? sum : sum + Number(b.totalAmount ?? 0),
-          0
-        );
-        const fallbackLowStock = loadedProducts.filter(
-          (p) => p.quantity < 11
-        ).length;
-
-        setSummary((prev) => ({
-          ...prev,
-          totalProducts: loadedProducts.length,
-          totalSales: fallbackSales,
-          lowStockProducts: fallbackLowStock,
-        }));
-
-        if (dashboardRes.status === "rejected") {
-          const msg =
-            dashboardRes.reason?.response?.data?.message ||
-            "Something went wrong";
-          setError(msg);
-        }
       }
     } catch (err) {
       setError(
@@ -207,7 +208,21 @@ export default function Dashboard() {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
-  // Build daily sales chart data for the last N days (7 or 30)
+  // Helper: Check if a bill is cancelled or refunded
+  const isBillCancelledOrRefunded = useCallback(
+    (bill) => {
+      if (!bill) return true;
+      const status = String(bill.status || "").toUpperCase();
+      return (
+        status === "CANCELLED" ||
+        status === "REFUNDED" ||
+        refundedBillIds.has(Number(bill.id))
+      );
+    },
+    [refundedBillIds]
+  );
+
+  // Build daily sales chart data for the last N days (excludes cancelled & refunded bills!)
   const salesChartData = useMemo(() => {
     const today = new Date();
     const buckets = [];
@@ -215,7 +230,7 @@ export default function Dashboard() {
     for (let i = rangeDays - 1; i >= 0; i--) {
       const d = new Date(today);
       d.setDate(today.getDate() - i);
-      const key = d.toISOString().slice(0, 10); // YYYY-MM-DD
+      const key = toLocalDateKey(d);
       const label =
         rangeDays <= 7
           ? d.toLocaleDateString("en-IN", { weekday: "short" })
@@ -226,17 +241,16 @@ export default function Dashboard() {
     const bucketMap = new Map(buckets.map((b) => [b.key, b]));
 
     bills.forEach((bill) => {
-      if (bill.status === "CANCELLED" || !bill.billDate) return;
-      const d = new Date(bill.billDate);
-      if (Number.isNaN(d.getTime())) return;
-      const key = d.toISOString().slice(0, 10);
-      if (bucketMap.has(key)) {
+      // FIX: Cancelled ya Refunded bill ko Sales Graph mein bilkul add na karein!
+      if (isBillCancelledOrRefunded(bill) || !bill.billDate) return;
+      const key = toLocalDateKey(bill.billDate);
+      if (key && bucketMap.has(key)) {
         bucketMap.get(key).sales += Number(bill.totalAmount ?? 0);
       }
     });
 
     return buckets;
-  }, [bills, rangeDays]);
+  }, [bills, rangeDays, isBillCancelledOrRefunded]);
 
   const periodSalesTotal = useMemo(
     () => salesChartData.reduce((sum, item) => sum + item.sales, 0),
