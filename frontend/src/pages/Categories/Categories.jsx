@@ -183,37 +183,22 @@ export default function Categories() {
         </button>
         
       </div>
-           {error && (
-        <div
-          role="alert"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: "10px",
-            padding: "12px 16px",
-            marginBottom: "18px",
-            borderRadius: "8px",
-            background: "#fef2f2",
-            border: "1px solid #fecaca",
-            color: "#991b1b",
-            fontSize: "13px",
-            fontWeight: 500,
-          }}
-        >
-          <span>⚠️ {error}</span>
+          {error && (
+        <div className="error-message" role="alert">
+          <div className="error-message-content">
+            <AlertTriangle size={18} />
+            <div>
+              <strong>Action failed</strong>
+              <p>{error}</p>
+            </div>
+          </div>
           <button
             type="button"
+            className="error-dismiss-btn"
             onClick={() => setError("")}
-            style={{
-              border: "none",
-              background: "transparent",
-              color: "#991b1b",
-              fontWeight: 700,
-              cursor: "pointer",
-            }}
+            aria-label="Dismiss error"
           >
-            Dismiss
+            <X size={16} />
           </button>
         </div>
       )}

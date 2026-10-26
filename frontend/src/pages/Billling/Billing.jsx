@@ -43,7 +43,7 @@ function formatDateTime(value) {
   });
 }
 
-function getErrorMessage(err, fallback) {
+function getError(err, fallback) {
   return (
     err?.response?.data?.message ||
     err?.response?.data?.error ||
@@ -127,7 +127,7 @@ export default function Billing() {
   const [billsLoading, setBillsLoading] = useState(false);
 
   // Page Feedback Banners
-  const [errorMessage, setErrorMessage] = useState("");
+  const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
   // Create Bill States
@@ -183,8 +183,8 @@ export default function Billing() {
         setCustomers(customersRes.value.data.data.map(normalizeCustomer));
       }
     } catch (err) {
-      setErrorMessage(
-        getErrorMessage(err, "Unable to load customers and products.")
+      setError(
+        getError(err, "Unable to load customers and products.")
       );
     } finally {
       setLoadingInitial(false);
@@ -195,7 +195,7 @@ export default function Billing() {
   const fetchAllBills = useCallback(async () => {
     try {
       setBillsLoading(true);
-      setErrorMessage("");
+      setError("");
       setActiveFilterLabel("");
 
       const response = await api.get("/api/bill");
@@ -205,10 +205,10 @@ export default function Billing() {
           .sort((a, b) => (b.id ?? 0) - (a.id ?? 0));
         setBills(list);
       } else {
-        setErrorMessage(response.data?.message || "Unable to load bills.");
+        setError(response.data?.message || "Unable to load bills.");
       }
     } catch (err) {
-      setErrorMessage(getErrorMessage(err, "Unable to load bills."));
+      setError(getError(err, "Unable to load bills."));
     } finally {
       setBillsLoading(false);
     }
@@ -245,7 +245,7 @@ export default function Billing() {
   // Add Product to Bill Cart
   const addProductToCart = (product) => {
     setSuccessMessage("");
-    setErrorMessage("");
+    setError("");
 
     setCart((previous) => {
       const existing = previous.find((item) => item.id === product.id);
@@ -299,12 +299,12 @@ export default function Billing() {
   // Create Bill Submit (POST /api/bill + optional PATCH /api/bill/bill_id/{id}/payment)
   const handleCreateBill = async (event) => {
     event.preventDefault();
-    setErrorMessage("");
+    setError("");
     setSuccessMessage("");
 
     const customerIdNum = Number(selectedCustomer);
     if (!selectedCustomer || !Number.isInteger(customerIdNum) || customerIdNum <= 0) {
-      setErrorMessage("Please select a customer before creating a bill.");
+      setError("Please select a customer before creating a bill.");
       return;
     }
 
@@ -313,7 +313,7 @@ export default function Billing() {
     );
 
     if (validCartItems.length === 0) {
-      setErrorMessage("Bill must contain at least one product with quantity > 0.");
+      setError("Bill must contain at least one product with quantity > 0.");
       return;
     }
 
@@ -327,7 +327,7 @@ export default function Billing() {
         paymentToRecord <= 0 ||
         paymentToRecord > subtotal
       ) {
-        setErrorMessage(
+        setError(
           `Partial payment must be greater than ₹0 and at most ${formatCurrency(
             subtotal
           )}.`
@@ -362,9 +362,9 @@ export default function Billing() {
               }
             );
           } catch (payErr) {
-            setErrorMessage(
+            setError(
               `Bill #${createdBill.id} was created, but payment update failed: ` +
-                getErrorMessage(payErr, "Unable to record payment.")
+                getError(payErr, "Unable to record payment.")
             );
           }
         }
@@ -388,10 +388,10 @@ export default function Billing() {
 
         await Promise.all([fetchCustomersAndProducts(), fetchAllBills()]);
       } else {
-        setErrorMessage(response.data?.message || "Unable to create bill.");
+        setError(response.data?.message || "Unable to create bill.");
       }
     } catch (err) {
-      setErrorMessage(getErrorMessage(err, "Unable to create bill."));
+      setError(getError(err, "Unable to create bill."));
     } finally {
       setCreatingBill(false);
     }
@@ -408,7 +408,7 @@ export default function Billing() {
 
     try {
       setBillsLoading(true);
-      setErrorMessage("");
+      setError("");
 
       const response = await api.get("/api/bill/search", {
         params: { keyword },
@@ -422,10 +422,10 @@ export default function Billing() {
         );
         setActiveFilterLabel(`Search: "${keyword}"`);
       } else {
-        setErrorMessage(response.data?.message || "No matching bills found.");
+        setError(response.data?.message || "No matching bills found.");
       }
     } catch (err) {
-      setErrorMessage(getErrorMessage(err, "Unable to search bills."));
+      setError(getError(err, "Unable to search bills."));
     } finally {
       setBillsLoading(false);
     }
@@ -441,7 +441,7 @@ export default function Billing() {
 
     try {
       setBillsLoading(true);
-      setErrorMessage("");
+      setError("");
 
       const response = await api.get(`/api/bill/customer_id/${value}`);
       if (response.data?.success && Array.isArray(response.data.data)) {
@@ -455,13 +455,13 @@ export default function Billing() {
           `Customer: ${custObj ? custObj.name : `#${value}`}`
         );
       } else {
-        setErrorMessage(
+        setError(
           response.data?.message || "Unable to filter bills by customer."
         );
       }
     } catch (err) {
-      setErrorMessage(
-        getErrorMessage(err, "Unable to filter bills by customer.")
+      setError(
+        getError(err, "Unable to filter bills by customer.")
       );
     } finally {
       setBillsLoading(false);
@@ -472,7 +472,7 @@ export default function Billing() {
   const handleDateRangeFilter = async (event) => {
     event.preventDefault();
     if (!startDate || !endDate) {
-      setErrorMessage("Please select both start and end dates.");
+      setError("Please select both start and end dates.");
       return;
     }
 
@@ -481,7 +481,7 @@ export default function Billing() {
 
     try {
       setBillsLoading(true);
-      setErrorMessage("");
+      setError("");
 
       const response = await api.get("/api/bill/date-range", {
         params: {
@@ -503,8 +503,8 @@ export default function Billing() {
       }
     } catch (err) {
       setBills([]);
-      setErrorMessage(
-        getErrorMessage(err, "No bills found in the selected date range.")
+      setError(
+        getError(err, "No bills found in the selected date range.")
       );
     } finally {
       setBillsLoading(false);
@@ -603,7 +603,7 @@ export default function Billing() {
     } catch (err) {
       setModalFeedback({
         type: "error",
-        message: getErrorMessage(err, "Unable to load bill details."),
+        message: getError(err, "Unable to load bill details."),
       });
     } finally {
       setBillDetailsLoading(false);
@@ -670,7 +670,7 @@ export default function Billing() {
     } catch (err) {
       setModalFeedback({
         type: "error",
-        message: getErrorMessage(err, "Unable to update payment."),
+        message: getError(err, "Unable to update payment."),
       });
     } finally {
       setPaymentSubmitting(false);
@@ -707,7 +707,7 @@ export default function Billing() {
         });
       }
     } catch (err) {
-      const msg = getErrorMessage(err, "Unable to cancel bill.");
+      const msg = getError(err, "Unable to cancel bill.");
       if (msg.toLowerCase().includes("already cancelled")) {
         setSelectedBill((prev) =>
           prev ? { ...prev, status: "CANCELLED" } : prev
@@ -762,12 +762,22 @@ export default function Billing() {
         </div>
       </div>
 
-      {errorMessage && (
-        <div className="billing-error" role="alert">
-          <AlertTriangle size={18} />
-          <span>{errorMessage}</span>
-          <button type="button" onClick={() => setErrorMessage("")}>
-            Dismiss
+       {error && (
+        <div className="error-message" role="alert">
+          <div className="error-message-content">
+            <AlertTriangle size={18} />
+            <div>
+              <strong>Action failed</strong>
+              <p>{error}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="error-dismiss-btn"
+            onClick={() => setError("")}
+            aria-label="Dismiss error"
+          >
+            <X size={16} />
           </button>
         </div>
       )}

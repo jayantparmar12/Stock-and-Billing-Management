@@ -219,11 +219,21 @@ export default function Customers() {
       </div>
 
       {error && (
-        <div className="customers-error" role="alert">
-          <AlertTriangle size={17} />
-          <span>{error}</span>
-          <button type="button" onClick={() => setError("")}>
-            Dismiss
+        <div className="error-message" role="alert">
+          <div className="error-message-content">
+            <AlertTriangle size={18} />
+            <div>
+              <strong>Action failed</strong>
+              <p>{error}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="error-dismiss-btn"
+            onClick={() => setError("")}
+            aria-label="Dismiss error"
+          >
+            <X size={16} />
           </button>
         </div>
       )}
@@ -373,7 +383,7 @@ export default function Customers() {
                 <input
                   value={form.phone}
                   onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  placeholder="e.g. 9876543210"
+                  placeholder="e.g. xxxxxxxxxx"
                   required
                 />
               </label>

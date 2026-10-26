@@ -10,6 +10,7 @@ import {
   Clock,
   AlertTriangle,
   RefreshCw,
+  X
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -351,11 +352,21 @@ export default function Dashboard() {
       </div>
 
       {error && (
-        <div className="dashboard-error-banner" role="alert">
-          <AlertTriangle size={17} />
-          <span>{error}</span>
-          <button type="button" onClick={() => setError("")}>
-            Dismiss
+        <div className="error-message" role="alert">
+          <div className="error-message-content">
+            <AlertTriangle size={18} />
+            <div>
+              <strong>Action failed</strong>
+              <p>{error}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="error-dismiss-btn"
+            onClick={() => setError("")}
+            aria-label="Dismiss error"
+          >
+            <X size={16} />
           </button>
         </div>
       )}

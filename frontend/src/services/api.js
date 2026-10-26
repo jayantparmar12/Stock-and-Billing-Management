@@ -45,7 +45,7 @@ api.interceptors.response.use(
     } else if (!cleanMessage) {
       if (!error.response) {
         cleanMessage =
-          "Backend server is not reachable (check if Spring Boot is running on port 8080).";
+          "Backend server is not reachable.";
       } else {
         cleanMessage = `Request failed (${status})`;
       }
