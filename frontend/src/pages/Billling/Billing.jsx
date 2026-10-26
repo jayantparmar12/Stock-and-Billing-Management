@@ -43,7 +43,7 @@ function formatDateTime(value) {
   });
 }
 
-function getError(err, fallback) {
+function getErrorMessage(err, fallback) {
   return (
     err?.response?.data?.message ||
     err?.response?.data?.error ||
@@ -84,13 +84,35 @@ function normalizeCustomer(raw) {
   };
 }
 
-function normalizeBill(raw) {
+function normalizeBill(raw, paidFromPaymentsMap, refundedSet) {
   if (!raw) return null;
   const totalAmount = Number(raw.totalAmount ?? 0);
-  const paidAmount =
-    raw.paidAmount !== undefined && raw.paidAmount !== null
-      ? Number(raw.paidAmount)
-      : undefined;
+
+  const hasRawPaid = raw.paidAmount !== undefined && raw.paidAmount !== null;
+  const fallbackPaid =
+    paidFromPaymentsMap && paidFromPaymentsMap.has(raw.id)
+      ? paidFromPaymentsMap.get(raw.id)
+      : 0;
+  const paidAmount = hasRawPaid ? Number(raw.paidAmount) : fallbackPaid;
+
+  const isRefunded = refundedSet && refundedSet.has(Number(raw.id));
+  const status =
+    String(raw.status || "").toUpperCase() === "CANCELLED" || isRefunded
+      ? "CANCELLED"
+      : "ACTIVE";
+
+  let paymentStatus = raw.paymentStatus
+    ? String(raw.paymentStatus).toUpperCase()
+    : "";
+  if (!paymentStatus) {
+    if (paidAmount >= totalAmount && totalAmount > 0) {
+      paymentStatus = "PAID";
+    } else if (paidAmount > 0) {
+      paymentStatus = "PARTIAL";
+    } else {
+      paymentStatus = "UNPAID";
+    }
+  }
 
   return {
     id: raw.id,
@@ -98,8 +120,8 @@ function normalizeBill(raw) {
     customer: raw.customer ? normalizeCustomer(raw.customer) : null,
     totalAmount,
     paidAmount,
-    status: raw.status ?? "ACTIVE",
-    paymentStatus: raw.paymentStatus ?? undefined,
+    status,
+    paymentStatus,
     items: Array.isArray(raw.items)
       ? raw.items.map((item, idx) => ({
           id: idx,
@@ -127,7 +149,7 @@ export default function Billing() {
   const [billsLoading, setBillsLoading] = useState(false);
 
   // Page Feedback Banners
-  const [error, setError] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
   // Create Bill States
@@ -138,9 +160,10 @@ export default function Billing() {
   const [initialCustomPayment, setInitialCustomPayment] = useState("");
   const [creatingBill, setCreatingBill] = useState(false);
 
-  // Bills History Filter States
+  // Bills History Live Filter States
   const [customerKeyword, setCustomerKeyword] = useState("");
   const [filterCustomerId, setFilterCustomerId] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("ALL"); // "ALL" | "ACTIVE" | "CANCELLED" | "PAID" | "PARTIAL" | "UNPAID"
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [activeFilterLabel, setActiveFilterLabel] = useState("");
@@ -183,32 +206,74 @@ export default function Billing() {
         setCustomers(customersRes.value.data.data.map(normalizeCustomer));
       }
     } catch (err) {
-      setError(
-        getError(err, "Unable to load customers and products.")
+      setErrorMessage(
+        getErrorMessage(err, "Unable to load customers and products.")
       );
     } finally {
       setLoadingInitial(false);
     }
   }, []);
 
-  // Fetch All Bills (GET /api/bill)
+  // Fetch All Bills (GET /api/bill + fallback /api/payments & /api/refunds for status badges)
   const fetchAllBills = useCallback(async () => {
     try {
       setBillsLoading(true);
-      setError("");
+      setErrorMessage("");
       setActiveFilterLabel("");
 
-      const response = await api.get("/api/bill");
-      if (response.data?.success && Array.isArray(response.data.data)) {
-        const list = response.data.data
-          .map(normalizeBill)
+      const [billsRes, paymentsRes, refundsRes] = await Promise.allSettled([
+        api.get("/api/bill"),
+        api.get("/api/payments"),
+        api.get("/api/refunds"),
+      ]);
+
+      const paidMap = new Map();
+      if (
+        paymentsRes.status === "fulfilled" &&
+        paymentsRes.value.data?.success &&
+        Array.isArray(paymentsRes.value.data.data)
+      ) {
+        paymentsRes.value.data.data.forEach((p) => {
+          const bId = p.bill?.id;
+          if (bId !== undefined && bId !== null) {
+            paidMap.set(bId, (paidMap.get(bId) || 0) + Number(p.amount ?? 0));
+          }
+        });
+      }
+
+      const refundedSet = new Set();
+      if (
+        refundsRes.status === "fulfilled" &&
+        refundsRes.value.data?.success &&
+        Array.isArray(refundsRes.value.data.data)
+      ) {
+        refundsRes.value.data.data.forEach((r) => {
+          if (r.bill?.id !== undefined && r.bill?.id !== null) {
+            refundedSet.add(Number(r.bill.id));
+          }
+        });
+      }
+
+      if (
+        billsRes.status === "fulfilled" &&
+        billsRes.value.data?.success &&
+        Array.isArray(billsRes.value.data.data)
+      ) {
+        const list = billsRes.value.data.data
+          .map((b) => normalizeBill(b, paidMap, refundedSet))
           .sort((a, b) => (b.id ?? 0) - (a.id ?? 0));
         setBills(list);
+      } else if (billsRes.status === "rejected") {
+        setErrorMessage(
+          getErrorMessage(billsRes.reason, "Unable to load bills.")
+        );
       } else {
-        setError(response.data?.message || "Unable to load bills.");
+        setErrorMessage(
+          billsRes.value?.data?.message || "Unable to load bills."
+        );
       }
     } catch (err) {
-      setError(getError(err, "Unable to load bills."));
+      setErrorMessage(getErrorMessage(err, "Unable to load bills."));
     } finally {
       setBillsLoading(false);
     }
@@ -242,10 +307,44 @@ export default function Billing() {
     );
   }, [products, productSearch]);
 
+  // LIVE Instant Search & Status Filtering for All Bills table (No Enter/Button needed!)
+  const displayedBills = useMemo(() => {
+    const query = customerKeyword.trim().toLowerCase();
+
+    return bills.filter((bill) => {
+      const billCode = `bill-${String(bill.id).padStart(4, "0")}`;
+      const customerName = (bill.customer?.name || "").toLowerCase();
+      const customerPhone = (bill.customer?.phone || "").toLowerCase();
+
+      const matchesKeyword =
+        !query ||
+        customerName.includes(query) ||
+        customerPhone.includes(query) ||
+        String(bill.id).includes(query) ||
+        billCode.includes(query);
+
+      const matchesStatus =
+        statusFilter === "ALL" ||
+        (statusFilter === "ACTIVE" && bill.status === "ACTIVE") ||
+        (statusFilter === "CANCELLED" && bill.status === "CANCELLED") ||
+        (statusFilter === "PAID" &&
+          bill.status !== "CANCELLED" &&
+          bill.paymentStatus === "PAID") ||
+        (statusFilter === "PARTIAL" &&
+          bill.status !== "CANCELLED" &&
+          bill.paymentStatus === "PARTIAL") ||
+        (statusFilter === "UNPAID" &&
+          bill.status !== "CANCELLED" &&
+          bill.paymentStatus === "UNPAID");
+
+      return matchesKeyword && matchesStatus;
+    });
+  }, [bills, customerKeyword, statusFilter]);
+
   // Add Product to Bill Cart
   const addProductToCart = (product) => {
     setSuccessMessage("");
-    setError("");
+    setErrorMessage("");
 
     setCart((previous) => {
       const existing = previous.find((item) => item.id === product.id);
@@ -299,21 +398,28 @@ export default function Billing() {
   // Create Bill Submit (POST /api/bill + optional PATCH /api/bill/bill_id/{id}/payment)
   const handleCreateBill = async (event) => {
     event.preventDefault();
-    setError("");
+    setErrorMessage("");
     setSuccessMessage("");
 
     const customerIdNum = Number(selectedCustomer);
-    if (!selectedCustomer || !Number.isInteger(customerIdNum) || customerIdNum <= 0) {
-      setError("Please select a customer before creating a bill.");
+    if (
+      !selectedCustomer ||
+      !Number.isInteger(customerIdNum) ||
+      customerIdNum <= 0
+    ) {
+      setErrorMessage("Please select a customer before creating a bill.");
       return;
     }
 
     const validCartItems = cart.filter(
-      (item) => Number.isInteger(Number(item.quantity)) && Number(item.quantity) > 0
+      (item) =>
+        Number.isInteger(Number(item.quantity)) && Number(item.quantity) > 0
     );
 
     if (validCartItems.length === 0) {
-      setError("Bill must contain at least one product with quantity > 0.");
+      setErrorMessage(
+        "Bill must contain at least one product with quantity > 0."
+      );
       return;
     }
 
@@ -327,7 +433,7 @@ export default function Billing() {
         paymentToRecord <= 0 ||
         paymentToRecord > subtotal
       ) {
-        setError(
+        setErrorMessage(
           `Partial payment must be greater than ₹0 and at most ${formatCurrency(
             subtotal
           )}.`
@@ -362,9 +468,9 @@ export default function Billing() {
               }
             );
           } catch (payErr) {
-            setError(
+            setErrorMessage(
               `Bill #${createdBill.id} was created, but payment update failed: ` +
-                getError(payErr, "Unable to record payment.")
+                getErrorMessage(payErr, "Unable to record payment.")
             );
           }
         }
@@ -388,47 +494,18 @@ export default function Billing() {
 
         await Promise.all([fetchCustomersAndProducts(), fetchAllBills()]);
       } else {
-        setError(response.data?.message || "Unable to create bill.");
+        setErrorMessage(response.data?.message || "Unable to create bill.");
       }
     } catch (err) {
-      setError(getError(err, "Unable to create bill."));
+      setErrorMessage(getErrorMessage(err, "Unable to create bill."));
     } finally {
       setCreatingBill(false);
     }
   };
 
-  // Search Bills by Customer Name (GET /api/bill/search?keyword=...)
-  const handleSearchByCustomerName = async (event) => {
+  // Optional Backend Search on Submit (while typing already filters instantly via displayedBills!)
+  const handleSearchByCustomerName = (event) => {
     event.preventDefault();
-    const keyword = customerKeyword.trim();
-    if (!keyword) {
-      fetchAllBills();
-      return;
-    }
-
-    try {
-      setBillsLoading(true);
-      setError("");
-
-      const response = await api.get("/api/bill/search", {
-        params: { keyword },
-      });
-
-      if (response.data?.success && Array.isArray(response.data.data)) {
-        setBills(
-          response.data.data
-            .map(normalizeBill)
-            .sort((a, b) => (b.id ?? 0) - (a.id ?? 0))
-        );
-        setActiveFilterLabel(`Search: "${keyword}"`);
-      } else {
-        setError(response.data?.message || "No matching bills found.");
-      }
-    } catch (err) {
-      setError(getError(err, "Unable to search bills."));
-    } finally {
-      setBillsLoading(false);
-    }
   };
 
   // Filter Bills by Customer ID (GET /api/bill/customer_id/{id})
@@ -441,27 +518,27 @@ export default function Billing() {
 
     try {
       setBillsLoading(true);
-      setError("");
+      setErrorMessage("");
 
       const response = await api.get(`/api/bill/customer_id/${value}`);
       if (response.data?.success && Array.isArray(response.data.data)) {
         const custObj = customers.find((c) => String(c.id) === String(value));
         setBills(
           response.data.data
-            .map(normalizeBill)
+            .map((b) => normalizeBill(b))
             .sort((a, b) => (b.id ?? 0) - (a.id ?? 0))
         );
         setActiveFilterLabel(
           `Customer: ${custObj ? custObj.name : `#${value}`}`
         );
       } else {
-        setError(
+        setErrorMessage(
           response.data?.message || "Unable to filter bills by customer."
         );
       }
     } catch (err) {
-      setError(
-        getError(err, "Unable to filter bills by customer.")
+      setErrorMessage(
+        getErrorMessage(err, "Unable to filter bills by customer.")
       );
     } finally {
       setBillsLoading(false);
@@ -472,7 +549,7 @@ export default function Billing() {
   const handleDateRangeFilter = async (event) => {
     event.preventDefault();
     if (!startDate || !endDate) {
-      setError("Please select both start and end dates.");
+      setErrorMessage("Please select both start and end dates.");
       return;
     }
 
@@ -481,7 +558,7 @@ export default function Billing() {
 
     try {
       setBillsLoading(true);
-      setError("");
+      setErrorMessage("");
 
       const response = await api.get("/api/bill/date-range", {
         params: {
@@ -493,7 +570,7 @@ export default function Billing() {
       if (response.data?.success && Array.isArray(response.data.data)) {
         setBills(
           response.data.data
-            .map(normalizeBill)
+            .map((b) => normalizeBill(b))
             .sort((a, b) => (b.id ?? 0) - (a.id ?? 0))
         );
         setActiveFilterLabel(`Date Range: ${startDate} to ${endDate}`);
@@ -503,8 +580,8 @@ export default function Billing() {
       }
     } catch (err) {
       setBills([]);
-      setError(
-        getError(err, "No bills found in the selected date range.")
+      setErrorMessage(
+        getErrorMessage(err, "No bills found in the selected date range.")
       );
     } finally {
       setBillsLoading(false);
@@ -514,6 +591,7 @@ export default function Billing() {
   const resetBillFilters = () => {
     setCustomerKeyword("");
     setFilterCustomerId("All");
+    setStatusFilter("ALL");
     setStartDate("");
     setEndDate("");
     fetchAllBills();
@@ -564,23 +642,21 @@ export default function Billing() {
           (sum, p) => sum + Number(p.amount ?? 0),
           0
         );
-        const effectivePaid =
-          loadedBill.paidAmount !== undefined
-            ? loadedBill.paidAmount
-            : computedPaid;
+        const effectivePaid = Math.max(
+          Number(loadedBill.paidAmount ?? 0),
+          computedPaid
+        );
 
         let effectivePaymentStatus = loadedBill.paymentStatus;
-        if (!effectivePaymentStatus) {
-          if (
-            effectivePaid >= loadedBill.totalAmount &&
-            loadedBill.totalAmount > 0
-          ) {
-            effectivePaymentStatus = "PAID";
-          } else if (effectivePaid > 0) {
-            effectivePaymentStatus = "PARTIAL";
-          } else {
-            effectivePaymentStatus = "UNPAID";
-          }
+        if (
+          effectivePaid >= loadedBill.totalAmount &&
+          loadedBill.totalAmount > 0
+        ) {
+          effectivePaymentStatus = "PAID";
+        } else if (effectivePaid > 0) {
+          effectivePaymentStatus = "PARTIAL";
+        } else {
+          effectivePaymentStatus = "UNPAID";
         }
 
         const effectiveStatus =
@@ -603,7 +679,7 @@ export default function Billing() {
     } catch (err) {
       setModalFeedback({
         type: "error",
-        message: getError(err, "Unable to load bill details."),
+        message: getErrorMessage(err, "Unable to load bill details."),
       });
     } finally {
       setBillDetailsLoading(false);
@@ -660,7 +736,10 @@ export default function Billing() {
           )} recorded successfully.`,
         });
         setPaymentInput("");
-        await openBillDetails(selectedBill.id, true);
+        await Promise.all([
+          openBillDetails(selectedBill.id, true),
+          fetchAllBills(),
+        ]);
       } else {
         setModalFeedback({
           type: "error",
@@ -670,7 +749,7 @@ export default function Billing() {
     } catch (err) {
       setModalFeedback({
         type: "error",
-        message: getError(err, "Unable to update payment."),
+        message: getErrorMessage(err, "Unable to update payment."),
       });
     } finally {
       setPaymentSubmitting(false);
@@ -699,6 +778,7 @@ export default function Billing() {
         await Promise.all([
           openBillDetails(selectedBill.id, true),
           fetchCustomersAndProducts(),
+          fetchAllBills(),
         ]);
       } else {
         setModalFeedback({
@@ -707,7 +787,7 @@ export default function Billing() {
         });
       }
     } catch (err) {
-      const msg = getError(err, "Unable to cancel bill.");
+      const msg = getErrorMessage(err, "Unable to cancel bill.");
       if (msg.toLowerCase().includes("already cancelled")) {
         setSelectedBill((prev) =>
           prev ? { ...prev, status: "CANCELLED" } : prev
@@ -762,22 +842,12 @@ export default function Billing() {
         </div>
       </div>
 
-       {error && (
-        <div className="error-message" role="alert">
-          <div className="error-message-content">
-            <AlertTriangle size={18} />
-            <div>
-              <strong>Action failed</strong>
-              <p>{error}</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            className="error-dismiss-btn"
-            onClick={() => setError("")}
-            aria-label="Dismiss error"
-          >
-            <X size={16} />
+      {errorMessage && (
+        <div className="billing-error" role="alert">
+          <AlertTriangle size={18} />
+          <span>{errorMessage}</span>
+          <button type="button" onClick={() => setErrorMessage("")}>
+            Dismiss
           </button>
         </div>
       )}
@@ -1025,7 +1095,9 @@ export default function Billing() {
                 }
               >
                 <option value="UNPAID">Unpaid (Pay Later)</option>
-                <option value="FULL">Mark Full Paid ({formatCurrency(subtotal)})</option>
+                <option value="FULL">
+                  Mark Full Paid ({formatCurrency(subtotal)})
+                </option>
                 <option value="PARTIAL">Record Partial Payment</option>
               </select>
             </div>
@@ -1070,6 +1142,7 @@ export default function Billing() {
         /* All Bills & Filters Section */
         <section className="billing-history-panel">
           <div className="billing-filters-bar">
+            {/* Instant Live Search (Filters as you type — no Enter or button needed!) */}
             <form
               className="billing-search-form"
               onSubmit={handleSearchByCustomerName}
@@ -1078,16 +1151,14 @@ export default function Billing() {
                 <Search size={16} />
                 <input
                   type="search"
-                  placeholder="Search bills by customer name..."
+                  placeholder="Search by customer name, phone, or Bill ID..."
                   value={customerKeyword}
                   onChange={(e) => setCustomerKeyword(e.target.value)}
                 />
               </div>
-              <button type="submit" className="billing-filter-btn">
-                Search
-              </button>
             </form>
 
+            {/* Filter by Customer Dropdown */}
             <div className="billing-customer-filter">
               <UserRound size={15} />
               <select
@@ -1101,6 +1172,21 @@ export default function Billing() {
                     {c.name} (#{c.id})
                   </option>
                 ))}
+              </select>
+            </div>
+
+            {/* Filter by Bill / Payment Status */}
+            <div className="billing-customer-filter">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                aria-label="Filter bills by status"
+              >
+                <option value="ALL">All Statuses</option>
+                <option value="PAID">Paid Bills (PAID)</option>
+                <option value="PARTIAL">Partial Paid (PARTIAL)</option>
+                <option value="UNPAID">Unpaid Bills (UNPAID)</option>
+                <option value="CANCELLED">Cancelled Bills</option>
               </select>
             </div>
 
@@ -1159,22 +1245,29 @@ export default function Billing() {
                   <th>DATE & TIME</th>
                   <th>ITEMS</th>
                   <th>TOTAL AMOUNT</th>
+                  <th>PAID / DUE</th>
+                  <th>STATUS</th>
                   <th>ACTIONS</th>
                 </tr>
               </thead>
               <tbody>
                 {billsLoading ? (
                   <tr>
-                    <td colSpan="6" className="billing-empty-row">
+                    <td colSpan="8" className="billing-empty-row">
                       Loading bills...
                     </td>
                   </tr>
                 ) : (
-                  bills.map((bill) => {
+                  displayedBills.map((bill) => {
                     const itemCount = bill.items.reduce(
                       (sum, i) => sum + i.quantity,
                       0
                     );
+                    const paidAmt = Number(bill.paidAmount ?? 0);
+                    const dueAmt =
+                      bill.status === "CANCELLED"
+                        ? 0
+                        : Math.max(0, bill.totalAmount - paidAmt);
 
                     return (
                       <tr
@@ -1202,6 +1295,40 @@ export default function Billing() {
                         <td className="bill-total-cell">
                           {formatCurrency(bill.totalAmount)}
                         </td>
+                        <td>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "2px", fontSize: "12px" }}>
+                            <span style={{ color: "#15803d", fontWeight: 600 }}>
+                              Paid: {formatCurrency(paidAmt)}
+                            </span>
+                            {dueAmt > 0 && (
+                              <span style={{ color: "#d97706", fontSize: "11px", fontWeight: 600 }}>
+                                Due: {formatCurrency(dueAmt)}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                            <span
+                              className={`bill-status-badge ${
+                                bill.status === "CANCELLED"
+                                  ? "cancelled"
+                                  : "active"
+                              }`}
+                            >
+                              {bill.status || "ACTIVE"}
+                            </span>
+                            {bill.status !== "CANCELLED" && (
+                              <span
+                                className={`bill-pay-badge ${(
+                                  bill.paymentStatus || "UNPAID"
+                                ).toLowerCase()}`}
+                              >
+                                {bill.paymentStatus || "UNPAID"}
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td onClick={(e) => e.stopPropagation()}>
                           <button
                             type="button"
@@ -1217,9 +1344,9 @@ export default function Billing() {
                   })
                 )}
 
-                {!billsLoading && bills.length === 0 && (
+                {!billsLoading && displayedBills.length === 0 && (
                   <tr>
-                    <td colSpan="6" className="billing-empty-row">
+                    <td colSpan="8" className="billing-empty-row">
                       No bills found. Create a new bill or adjust your search
                       filters.
                     </td>
