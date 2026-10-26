@@ -2,18 +2,42 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 28px;
+  padding: 12px 24px;
   background: #ffffff;
   border-bottom: 1px solid #e2e8f0;
-  gap: 16px;
+  gap: 12px;
   flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 900;
 }
 
 .top-navbar-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
+  min-width: 0;
+}
+
+.mobile-menu-trigger {
+  display: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #1e293b;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.mobile-menu-trigger:hover {
+  background: #edf2ff;
+  color: #3563e9;
+  border-color: #cbd5e1;
 }
 
 .shop-badge {
@@ -26,6 +50,13 @@
   color: #3563e9;
   font-size: 13px;
   font-weight: 700;
+  max-width: 240px;
+}
+
+.shop-badge span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .shop-code-btn {
@@ -50,7 +81,7 @@
 .top-navbar-right {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .navbar-user-chip {
@@ -63,6 +94,13 @@
   border: 1px solid #e2e8f0;
   font-size: 12px;
   color: #334155;
+}
+
+.navbar-user-name {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .role-pill {
@@ -187,10 +225,6 @@
   cursor: pointer;
 }
 
-.logout-cancel-btn:hover {
-  background: #f8fafc;
-}
-
 .logout-confirm-btn {
   padding: 9px 18px;
   border-radius: 8px;
@@ -202,6 +236,31 @@
   cursor: pointer;
 }
 
-.logout-confirm-btn:hover {
-  background: #b91c1c;
+@media (max-width: 1024px) {
+  .mobile-menu-trigger {
+    display: inline-flex;
+  }
+
+  .top-navbar {
+    padding: 10px 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  .navbar-user-name {
+    display: none;
+  }
+
+  .logout-btn-text {
+    display: none;
+  }
+
+  .navbar-logout-btn {
+    padding: 8px 10px;
+  }
+
+  .shop-code-btn {
+    font-size: 10px;
+    padding: 5px 8px;
+  }
 }

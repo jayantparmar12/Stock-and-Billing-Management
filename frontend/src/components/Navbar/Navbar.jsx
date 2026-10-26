@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Store, Copy, Check, LogOut, UserCheck, X } from "lucide-react";
+import { Store, Copy, Check, LogOut, UserCheck, X, Menu } from "lucide-react";
 import "./Navbar.css";
 
 export default function Navbar() {
@@ -22,6 +22,10 @@ export default function Navbar() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const toggleMobileSidebar = () => {
+    window.dispatchEvent(new CustomEvent("toggle-mobile-sidebar"));
+  };
+
   const confirmLogout = () => {
     setShowLogoutModal(false);
     localStorage.removeItem("token");
@@ -32,8 +36,17 @@ export default function Navbar() {
   return (
     <>
       <header className="top-navbar">
-        {/* Left: Shop Name & 1-Click Copyable Shop Code */}
+        {/* Left: Mobile Hamburger Button + Shop Name & Copyable Shop Code */}
         <div className="top-navbar-left">
+          <button
+            type="button"
+            className="mobile-menu-trigger"
+            onClick={toggleMobileSidebar}
+            aria-label="Open navigation menu"
+          >
+            <Menu size={20} />
+          </button>
+
           <div className="shop-badge">
             <Store size={16} />
             <span>{user.shopName || "My Shop Workspace"}</span>
@@ -56,7 +69,9 @@ export default function Navbar() {
         <div className="top-navbar-right">
           <div className="navbar-user-chip">
             <UserCheck size={15} />
-            <strong>{user.name || user.email || "Shop User"}</strong>
+            <strong className="navbar-user-name">
+              {user.name || user.email || "Shop User"}
+            </strong>
             <span
               className={`role-pill ${
                 user.role === "ADMIN" ? "admin" : "staff"
@@ -72,7 +87,7 @@ export default function Navbar() {
             onClick={() => setShowLogoutModal(true)}
           >
             <LogOut size={15} />
-            <span>Logout</span>
+            <span className="logout-btn-text">Logout</span>
           </button>
         </div>
       </header>
