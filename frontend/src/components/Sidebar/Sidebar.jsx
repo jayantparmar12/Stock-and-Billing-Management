@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -29,6 +29,14 @@ const navItems = [
 export default function Sidebar() {
   const navigate = useNavigate();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    const handleToggle = () => setMobileOpen((prev) => !prev);
+    window.addEventListener("toggle-mobile-sidebar", handleToggle);
+    return () =>
+      window.removeEventListener("toggle-mobile-sidebar", handleToggle);
+  }, []);
 
   let user = {};
   try {
@@ -39,6 +47,7 @@ export default function Sidebar() {
 
   const confirmLogout = () => {
     setShowLogoutModal(false);
+    setMobileOpen(false);
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     navigate("/login", { replace: true });
@@ -46,18 +55,37 @@ export default function Sidebar() {
 
   return (
     <>
-      <aside className="sidebar">
+      {/* Mobile Backdrop Overlay */}
+      {mobileOpen && (
+        <div
+          className="sidebar-mobile-overlay"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+      <aside className={`sidebar ${mobileOpen ? "mobile-open" : ""}`}>
         {/* Brand Header */}
         <div className="sidebar-brand">
-          <div className="sidebar-logo">
-            <Store size={20} />
+          <div className="sidebar-brand-left">
+            <div className="sidebar-logo">
+              <Store size={20} />
+            </div>
+            <div>
+              <h2>{user.shopName || "StockBilling"}</h2>
+              <span>
+                {user.shopCode ? `Code: ${user.shopCode}` : "Inventory ERP"}
+              </span>
+            </div>
           </div>
-          <div>
-            <h2>{user.shopName || "StockBilling"}</h2>
-            <span>
-              {user.shopCode ? `Code: ${user.shopCode}` : "Inventory ERP"}
-            </span>
-          </div>
+
+          <button
+            type="button"
+            className="sidebar-mobile-close"
+            onClick={() => setMobileOpen(false)}
+            aria-label="Close sidebar"
+          >
+            <X size={18} />
+          </button>
         </div>
 
         {/* Navigation Links */}
@@ -69,6 +97,7 @@ export default function Sidebar() {
                 key={item.to}
                 to={item.to}
                 end={item.to === "/"}
+                onClick={() => setMobileOpen(false)}
                 className={({ isActive }) =>
                   `sidebar-link ${isActive ? "active" : ""}`
                 }

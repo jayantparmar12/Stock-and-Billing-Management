@@ -7,15 +7,24 @@
   flex-direction: column;
   padding: 20px 14px;
   flex-shrink: 0;
+  transition: transform 0.25s ease;
 }
 
 .sidebar-brand {
   display: flex;
   align-items: center;
-  gap: 11px;
+  justify-content: space-between;
+  gap: 10px;
   padding: 4px 10px 20px;
   border-bottom: 1px solid #f1f5f9;
   margin-bottom: 14px;
+}
+
+.sidebar-brand-left {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
 }
 
 .sidebar-logo {
@@ -27,6 +36,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .sidebar-brand h2 {
@@ -34,12 +44,28 @@
   font-size: 15px;
   color: #1e293b;
   line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar-brand span {
   font-size: 11px;
   color: #64748b;
   font-weight: 600;
+}
+
+.sidebar-mobile-close {
+  display: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
 }
 
 .sidebar-nav {
@@ -100,6 +126,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
 .sidebar-user-text {
@@ -143,6 +170,10 @@
   background: #dc2626;
   color: #ffffff;
   border-color: #dc2626;
+}
+
+.sidebar-mobile-overlay {
+  display: none;
 }
 
 /* Sidebar Logout Confirmation Dialog Modal */
@@ -229,10 +260,6 @@
   cursor: pointer;
 }
 
-.sidebar-cancel-btn:hover {
-  background: #f8fafc;
-}
-
 .sidebar-confirm-btn {
   padding: 9px 18px;
   border-radius: 8px;
@@ -244,6 +271,32 @@
   cursor: pointer;
 }
 
-.sidebar-confirm-btn:hover {
-  background: #b91c1c;
+/* Mobile & Tablet Slide-Over Drawer (<= 1024px) */
+@media (max-width: 1024px) {
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 1500;
+    transform: translateX(-100%);
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.22);
+  }
+
+  .sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-mobile-close {
+    display: inline-flex;
+  }
+
+  .sidebar-mobile-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 1400;
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(2px);
+  }
 }
