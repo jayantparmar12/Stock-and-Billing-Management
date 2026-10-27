@@ -152,7 +152,7 @@ export default function Auth() {
                     <KeyRound size={16} />
                     <input
                       type="text"
-                      placeholder="e.g. RAH123"
+                      placeholder="e.g. RAHU-123"
                       value={form.shopCode}
                       onChange={(e) =>
                         setForm({ ...form, shopCode: e.target.value })
