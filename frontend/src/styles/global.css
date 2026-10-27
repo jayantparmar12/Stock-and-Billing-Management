@@ -1,6 +1,3 @@
-
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
-
 *,
 *::before,
 *::after {
@@ -42,6 +39,7 @@ main {
 .products-table-wrap,
 .categories-table-wrap,
 .customers-table-wrap,
+.billing-table-wrapper,
 .billing-table-wrap,
 .payments-table-wrapper,
 .refunds-table-wrapper,
@@ -66,9 +64,17 @@ main {
 
   .dashboard-charts,
   .dashboard-bottom,
+  .billing-layout,
   .billing-workspace,
   .billing-grid {
     grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+/* Mobile & Tablet Navbar: Hide Profile & Logout so Navbar stays on 1 clean line */
+@media (max-width: 1024px) {
+  .top-navbar-right {
+    display: none !important;
   }
 }
 
@@ -107,6 +113,7 @@ main {
   .categories-heading-actions,
   .customers-heading-actions,
   .billing-heading-actions,
+  .billing-tabs,
   .payments-heading-actions,
   .refunds-heading-actions {
     width: 100%;
@@ -121,6 +128,7 @@ main {
   .products-toolbar,
   .categories-toolbar,
   .customers-toolbar,
+  .billing-filters-bar,
   .billing-toolbar,
   .stock-toolbar {
     flex-direction: column !important;
@@ -133,7 +141,10 @@ main {
   .customers-search,
   .products-search,
   .categories-search,
-  .billing-search,
+  .billing-search-form,
+  .billing-search-box,
+  .billing-customer-filter,
+  .billing-date-filter,
   .payments-filters select,
   .refunds-filters select {
     width: 100% !important;
@@ -149,7 +160,9 @@ main {
   .products-stats,
   .categories-stats,
   .billing-stats,
-  .stock-stats {
+  .stock-stats,
+  .bill-overview-grid,
+  .bill-histories-grid {
     grid-template-columns: 1fr !important;
     gap: 12px !important;
   }
@@ -160,6 +173,7 @@ main {
   .customer-modal,
   .product-modal,
   .category-modal,
+  .billing-details-modal,
   .bill-modal,
   .logout-modal-card,
   .sidebar-logout-modal {

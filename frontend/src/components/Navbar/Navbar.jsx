@@ -65,7 +65,7 @@ export default function Navbar() {
           )}
         </div>
 
-        {/* Right: Logged-in User Name, Role Badge (ADMIN / STAFF) & Logout Button */}
+        {/* Right: Desktop-Only User Profile & Logout (Hidden on Mobile/Tablet <= 1024px) */}
         <div className="top-navbar-right">
           <div className="navbar-user-chip">
             <UserCheck size={15} />
