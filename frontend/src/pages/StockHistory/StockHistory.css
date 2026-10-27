@@ -423,19 +423,13 @@
   justify-content: center;
   width: 32px;
   height: 32px;
-  color: #64748b;
+  color: #0f766e;
   background: #ffffff;
-  border: 1px solid #e2e8f0;
+  border: none;
   border-radius: 7px;
   cursor: pointer;
-  transition: 0.2s ease;
 }
 
-.history-view-button:hover {
-  color: #2563eb;
-  background: #eff6ff;
-  border-color: #bfdbfe;
-}
 
 .history-table-footer {
   padding: 15px 24px;
