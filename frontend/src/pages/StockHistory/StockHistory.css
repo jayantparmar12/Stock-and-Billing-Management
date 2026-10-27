@@ -430,6 +430,10 @@
   cursor: pointer;
 }
 
+.history-view-button:hover{
+  background: #ccfbf1;
+}
+
 
 .history-table-footer {
   padding: 15px 24px;

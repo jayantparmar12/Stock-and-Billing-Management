@@ -369,15 +369,15 @@
   justify-content: center;
   width: 32px;
   height: 32px;
-  border: 1px solid #e1e7f0;
+  border: none;
   border-radius: 7px;
   background: #fff;
-  color: #3563e9;
+   color: #0f766e;
   cursor: pointer;
 }
 
 .payment-view-btn:hover {
-  background: #edf2ff;
+  background: #ccfbf1;
 }
 
 .payments-empty {

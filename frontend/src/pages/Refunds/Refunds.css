@@ -362,15 +362,15 @@
   justify-content: center;
   width: 32px;
   height: 32px;
-  border: 1px solid #e1e7f0;
-  border-radius: 7px;
+  border: none;
   background: #fff;
-  color: #3563e9;
+  color: #0f766e;
   cursor: pointer;
+  border-radius: 7px;
 }
 
 .refund-view-btn:hover {
-  background: #edf2ff;
+  background: #ccfbf1;
 }
 
 .refunds-empty {
