@@ -1,14 +1,18 @@
-
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Search,
   Plus,
   Tags,
   Pencil,
   Trash2,
+  Eye,
   X,
   Package,
-  AlertTriangle
+  RefreshCw,
+  IndianRupee,
+  Layers,
+  ChevronRight,
 } from "lucide-react";
 import "./Categories.css";
 import api from "../../services/api";
@@ -18,60 +22,193 @@ const emptyForm = {
   description: "",
 };
 
-function getCategoryError(err, fallback) {
-  if (err?.response?.status === 403) {
-    return "Access Denied: Only ADMIN can add, edit, or delete categories.";
-  }
-  if (err?.response?.status === 401) {
-    return "Session expired. Please sign in again.";
-  }
-  return (
-    err?.response?.data?.message ||
-    err?.response?.data?.error ||
-    err?.message ||
-    fallback
-  );
+function formatCurrency(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return "₹0.00";
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 2,
+  }).format(num);
 }
 
+function normalizeProduct(raw, fallbackCategory = null) {
+  if (!raw) return null;
+  const categoryName =
+    typeof raw.category === "object" && raw.category !== null
+      ? raw.category.name ?? ""
+      : raw.category ?? fallbackCategory?.name ?? "";
+  const categoryId =
+    typeof raw.category === "object" && raw.category !== null
+      ? raw.category.id ?? null
+      : raw.categoryId ?? fallbackCategory?.id ?? null;
+
+  return {
+    id: raw.id,
+    name: raw.name ?? raw.product ?? "Product",
+    categoryName: String(categoryName).trim(),
+    categoryId,
+    price: Number(raw.price ?? 0),
+    quantity: Number(raw.quantity ?? raw.stock ?? 0),
+  };
+}
 
 export default function Categories() {
+  const navigate = useNavigate();
   const [categories, setCategories] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+
+  // Add / Edit Category Modal State
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState("");
-  const [error, setError] = useState(false);
+  const [error, setError] = useState("");
 
-  const fetchCategories = useCallback(async () => {
+  // Selected Category Details & Products Modal State
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [categoryModalProducts, setCategoryModalProducts] = useState([]);
+  const [categoryProductsLoading, setCategoryProductsLoading] = useState(false);
+  const [categoryProductSearch, setCategoryProductSearch] = useState("");
+
+  const fetchCategoriesAndProducts = useCallback(async () => {
     try {
+      setLoading(true);
       setError("");
-      const response = await api.get("/api/categories");
-      if (response.data?.success) {
-        setCategories(response.data.data || []);
+
+      const [catRes, prodRes] = await Promise.all([
+        api.get("/api/categories"),
+        api.get("/api/products").catch(() => ({ data: { data: [] } })),
+      ]);
+
+      const rawProducts = Array.isArray(prodRes.data?.data)
+        ? prodRes.data.data.map((p) => normalizeProduct(p)).filter(Boolean)
+        : [];
+      setProducts(rawProducts);
+
+      if (catRes.data?.success) {
+        const rawCategories = catRes.data.data || [];
+
+        const countByName = {};
+        const countById = {};
+
+        rawProducts.forEach((p) => {
+          if (p.categoryName) {
+            const key = p.categoryName.toLowerCase();
+            countByName[key] = (countByName[key] || 0) + 1;
+          }
+          if (p.categoryId !== undefined && p.categoryId !== null) {
+            countById[p.categoryId] = (countById[p.categoryId] || 0) + 1;
+          }
+        });
+
+        const enriched = rawCategories.map((cat) => {
+          const nameKey = (cat.name || "").trim().toLowerCase();
+          const varietyCount =
+            countById[cat.id] ??
+            countByName[nameKey] ??
+            (cat.productsVariety !== undefined && cat.productsVariety !== null
+              ? Number(cat.productsVariety)
+              : 0);
+
+          return {
+            ...cat,
+            productsVariety: varietyCount,
+          };
+        });
+
+        setCategories(enriched);
       } else {
-        setError(response.data?.message || "Unable to load categories.");
+        setError(catRes.data?.message || "Unable to load categories");
       }
     } catch (err) {
-      setError(getCategoryError(err, "Unable to connect to backend to load categories."));
+      setError(err.response?.data?.message || "Unable to load categories");
+    } finally {
+      setLoading(false);
     }
   }, []);
 
-  useState(()=>{
-    fetchCategories()
-  },[])
-
-
+  useEffect(() => {
+    fetchCategoriesAndProducts();
+  }, [fetchCategoriesAndProducts]);
 
   const filteredCategories = useMemo(() => {
     const query = search.trim().toLowerCase();
 
     return categories.filter(
       (category) =>
-        category.name.toLowerCase().includes(query) ||
-        category.description.toLowerCase().includes(query)
+        (category.name ?? "").toLowerCase().includes(query) ||
+        (category.description ?? "").toLowerCase().includes(query)
     );
   }, [categories, search]);
+
+  // Open Category Modal & Load Products (Supports GET /api/categories/{id}/products + Frontend Fallback)
+  const openCategoryDetails = useCallback(
+    async (category) => {
+      if (!category) return;
+      setSelectedCategory(category);
+      setCategoryProductSearch("");
+
+      // 1. Instant local filter from already-fetched products
+      const targetName = (category.name ?? "").trim().toLowerCase();
+      const targetId = category.id;
+      const localMatches = products.filter(
+        (p) =>
+          (p.categoryId !== null &&
+            p.categoryId !== undefined &&
+            String(p.categoryId) === String(targetId)) ||
+          p.categoryName.toLowerCase() === targetName
+      );
+      setCategoryModalProducts(localMatches);
+
+      // 2. Also try dedicated backend endpoint GET /api/categories/{id}/products if added in CategoryController
+      try {
+        setCategoryProductsLoading(true);
+        const res = await api.get(`/api/categories/${category.id}/products`);
+        if (res.data?.success && Array.isArray(res.data.data)) {
+          const normalized = res.data.data
+            .map((item) => normalizeProduct(item, category))
+            .filter(Boolean);
+          setCategoryModalProducts(normalized);
+        }
+      } catch {
+        // Fallback silently to localMatches if backend endpoint is not yet added
+      } finally {
+        setCategoryProductsLoading(false);
+      }
+    },
+    [products]
+  );
+
+  // Filtered products inside the modal search bar
+  const displayedCategoryProducts = useMemo(() => {
+    const prodQuery = categoryProductSearch.trim().toLowerCase();
+    if (!prodQuery) return categoryModalProducts;
+
+    return categoryModalProducts.filter(
+      (p) =>
+        p.name.toLowerCase().includes(prodQuery) ||
+        String(p.id).includes(prodQuery)
+    );
+  }, [categoryModalProducts, categoryProductSearch]);
+
+  const categoryStats = useMemo(() => {
+    const totalUnits = categoryModalProducts.reduce(
+      (sum, p) => sum + (p.quantity || 0),
+      0
+    );
+    const totalValue = categoryModalProducts.reduce(
+      (sum, p) => sum + (p.price || 0) * (p.quantity || 0),
+      0
+    );
+    return {
+      totalProducts: categoryModalProducts.length,
+      totalUnits,
+      totalValue,
+    };
+  }, [categoryModalProducts]);
 
   const openAddForm = () => {
     setEditingId(null);
@@ -80,7 +217,8 @@ export default function Categories() {
     setShowForm(true);
   };
 
-  const openEditForm = (category) => {
+  const openEditForm = (category, event) => {
+    if (event) event.stopPropagation();
     setEditingId(category.id);
     setForm({
       name: category.name,
@@ -92,8 +230,6 @@ export default function Categories() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    setFormError("");
-    setError("");
 
     const name = form.name.trim();
     const description = form.description.trim();
@@ -102,69 +238,89 @@ export default function Categories() {
       setFormError("Category name is required.");
       return;
     }
+
     if (!description) {
       setFormError("Category description is required.");
       return;
     }
 
-    try {
-      if (editingId !== null) {
-        const response = await api.put("/api/categories", {
+    const duplicate = categories.some(
+      (category) =>
+        category.name.toLowerCase() === name.toLowerCase() &&
+        category.id !== editingId
+    );
+
+    if (duplicate) {
+      setFormError("A category with this name already exists.");
+      return;
+    }
+
+    if (editingId !== null) {
+      try {
+        const data = {
           id: editingId,
           name,
           description,
-        });
-        if (response.data?.success) {
-          setCategories((prev) =>
-            prev.map((cat) =>
-              cat.id === editingId ? { ...cat, ...response.data.data } : cat
-            )
-          );
-          setShowForm(false);
-          setForm(emptyForm);
-          setEditingId(null);
+        };
+        const response = await api.put("/api/categories", data);
+        if (response.data.success) {
+          await fetchCategoriesAndProducts();
         } else {
-          setFormError(response.data?.message || "Unable to update category.");
+          setError(response.data.message);
         }
-      } else {
-        const response = await api.post("/api/categories", { name, description });
-        if (response.data?.success) {
+      } catch (err) {
+        setError(err.response?.data?.message || "Unable to update category");
+      }
+    } else {
+      try {
+        const data = {
+          name,
+          description,
+        };
+        const response = await api.post("/api/categories", data);
+        if (response.data.success) {
           setCategories((prev) => [
             ...prev,
             { productsVariety: 0, ...response.data.data },
           ]);
-          setShowForm(false);
-          setForm(emptyForm);
         } else {
-          setFormError(response.data?.message || "Unable to add category.");
+          setError(response.data.message);
         }
+      } catch (err) {
+        setError(err.response?.data?.message || "Unable to add category");
       }
-    } catch (err) {
-      const msg = getCategoryError(err, "Unable to save category.");
-      setFormError(msg);
-      setError(msg);
     }
+
+    setShowForm(false);
+    setForm(emptyForm);
+    setEditingId(null);
+    setFormError("");
   };
 
-  const handleDelete = async (category) => {
+  const handleDelete = async (category, event) => {
+    if (event) event.stopPropagation();
+
     if ((category.productsVariety ?? 0) > 0) {
-      setError(
-        `Cannot delete "${category.name}" because products are assigned to it.`
+      window.alert(
+        "This category has products assigned to it. Remove those products from the category before deleting it."
       );
       return;
     }
+
+    const confirmed = window.confirm(`Delete category "${category.name}"?`);
+    if (!confirmed) return;
+
     try {
-      setError("");
       const response = await api.delete(`/api/categories/${category.id}`);
-      if (response.data?.success) {
+      if (response.data.success) {
         setCategories((current) =>
           current.filter((item) => item.id !== category.id)
         );
       } else {
-        setError(response.data?.message || "Unable to delete category.");
+        setError(response.data.message);
       }
     } catch (err) {
-      setError(getCategoryError(err, "Unable to delete category."));
+      setError(err.response?.data?.message || "Unable to delete category");
     }
   };
 
@@ -173,36 +329,30 @@ export default function Categories() {
       <div className="categories-heading">
         <div>
           <h1>Categories</h1>
-          <p>Organize your products into manageable groups.</p>
-
+          {error && <p className="category-form-error">{error}</p>}
+          <p>
+            Organize your products into manageable groups. Click anywhere on a
+            category row to view its products.
+          </p>
         </div>
 
-        <button className="primary-button" onClick={openAddForm}>
-          <Plus size={17} />
-          Add Category
-        </button>
-        
-      </div>
-          {error && (
-        <div className="error-message" role="alert">
-          <div className="error-message-content">
-            <AlertTriangle size={18} />
-            <div>
-              <strong>Action failed</strong>
-              <p>{error}</p>
-            </div>
-          </div>
+        <div className="categories-heading-actions">
           <button
             type="button"
-            className="error-dismiss-btn"
-            onClick={() => setError("")}
-            aria-label="Dismiss error"
+            className="secondary-button"
+            onClick={fetchCategoriesAndProducts}
+            disabled={loading}
           >
-            <X size={16} />
+            <RefreshCw size={15} className={loading ? "spin-icon" : ""} />
+            Refresh
+          </button>
+
+          <button className="primary-button" onClick={openAddForm}>
+            <Plus size={17} />
+            Add Category
           </button>
         </div>
-      )}
-
+      </div>
 
       <section className="category-summary-grid">
         <article className="category-summary-card">
@@ -223,7 +373,7 @@ export default function Categories() {
             <span>Total Products Variety</span>
             <strong>
               {categories.reduce(
-                (total, category) => total + category.productsVariety,
+                (total, category) => total + (category.productsVariety ?? 0),
                 0
               )}
             </strong>
@@ -237,7 +387,11 @@ export default function Categories() {
           <div>
             <span>Empty Categories</span>
             <strong>
-              {categories.filter((category) => category.productsVariety === 0).length}
+              {
+                categories.filter(
+                  (category) => (category.productsVariety ?? 0) === 0
+                ).length
+              }
             </strong>
           </div>
         </article>
@@ -247,7 +401,10 @@ export default function Categories() {
         <div className="categories-toolbar">
           <div>
             <h3>All Categories</h3>
-            <p>{filteredCategories.length} categories found</p>
+            <p>
+              {filteredCategories.length} categories found — click any row to
+              view all products inside that category
+            </p>
           </div>
 
           <label className="category-search">
@@ -259,7 +416,6 @@ export default function Categories() {
               onChange={(event) => setSearch(event.target.value)}
             />
           </label>
-          
         </div>
 
         <div className="categories-table-scroll">
@@ -268,7 +424,7 @@ export default function Categories() {
               <tr>
                 <th>CATEGORY</th>
                 <th>DESCRIPTION</th>
-                <th>PRODUCTS Variety</th>
+                <th>PRODUCTS VARIETY</th>
                 <th>STATUS</th>
                 <th>ACTIONS</th>
               </tr>
@@ -276,13 +432,26 @@ export default function Categories() {
 
             <tbody>
               {filteredCategories.map((category) => (
-                <tr key={category.id}>
+                <tr
+                  key={category.id}
+                  className="category-row"
+                  style={{ cursor: "pointer" }}
+                  onClick={() => openCategoryDetails(category)}
+                  title={`Click to view all products in ${category.name}`}
+                >
                   <td>
                     <div className="category-name-cell">
                       <div className="category-row-icon">
                         <Tags size={18} />
                       </div>
-                      <strong>{category.name}</strong>
+                      <div className="category-name-text-wrap">
+                        <strong className="category-name-text">
+                          {category.name}
+                        </strong>
+                        <span className="category-row-hint">
+                          Click to view products <ChevronRight size={12} />
+                        </span>
+                      </div>
                     </div>
                   </td>
 
@@ -292,28 +461,39 @@ export default function Categories() {
 
                   <td>
                     <span className="category-product-count">
-                      {category.productsVariety? `${category.productsVariety}` :"0"} Products Veriety
+                      {category.productsVariety ?? 0} products variety
                     </span>
                   </td>
 
                   <td>
                     <span
-                      className={`category-status ${category.productsVariety > 0 ? "active" : "empty"
-                        }`}
+                      className={`category-status ${
+                        (category.productsVariety ?? 0) > 0 ? "active" : "empty"
+                      }`}
                     >
                       <span className="category-status-dot" />
-                      {category.productsVariety > 0 ? "Active" : "Empty"}
+                      {(category.productsVariety ?? 0) > 0 ? "Active" : "Empty"}
                     </span>
                   </td>
 
-                  <td>
+                  <td onClick={(e) => e.stopPropagation()}>
                     <div className="category-actions">
+                      <button
+                        type="button"
+                        className="action-button view"
+                        title="View products in this category"
+                        aria-label={`View products in ${category.name}`}
+                        onClick={() => openCategoryDetails(category)}
+                      >
+                        <Eye size={16} />
+                      </button>
+
                       <button
                         type="button"
                         className="action-button edit"
                         title="Edit category"
                         aria-label={`Edit ${category.name}`}
-                        onClick={() => openEditForm(category)}
+                        onClick={(e) => openEditForm(category, e)}
                       >
                         <Pencil size={16} />
                       </button>
@@ -323,7 +503,7 @@ export default function Categories() {
                         className="action-button delete"
                         title="Delete category"
                         aria-label={`Delete ${category.name}`}
-                        onClick={() => handleDelete(category)}
+                        onClick={(e) => handleDelete(category, e)}
                       >
                         <Trash2 size={16} />
                       </button>
@@ -344,18 +524,254 @@ export default function Categories() {
         </div>
       </section>
 
+      {/* Category Products Modal (Opens when clicking ANYWHERE on a Category Row) */}
+      {selectedCategory && (
+        <div
+          className="category-modal-backdrop"
+          onClick={() => setSelectedCategory(null)}
+        >
+          <section
+            className="category-modal category-details-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="category-products-modal-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            {/* Modal Top Header */}
+            <div className="category-modal-heading">
+              <div className="category-modal-title-group">
+                <div className="category-modal-badge-icon">
+                  <Tags size={20} />
+                </div>
+                <div>
+                  <div className="category-modal-title-row">
+                    <h2 id="category-products-modal-title">
+                      {selectedCategory.name}
+                    </h2>
+                    <span className="category-id-pill">
+                      ID #{selectedCategory.id}
+                    </span>
+                    <span
+                      className={`category-status ${
+                        categoryStats.totalProducts > 0 ? "active" : "empty"
+                      }`}
+                    >
+                      <span className="category-status-dot" />
+                      {categoryStats.totalProducts > 0 ? "Active" : "Empty"}
+                    </span>
+                  </div>
+                  <p className="category-modal-desc">
+                    {selectedCategory.description ||
+                      "All products assigned to this category in your shop."}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className="modal-close"
+                aria-label="Close modal"
+                onClick={() => setSelectedCategory(null)}
+              >
+                <X size={19} />
+              </button>
+            </div>
+
+            {/* 3 Summary Stat Cards inside Modal */}
+            <div className="category-details-grid">
+              <div className="category-detail-box">
+                <div className="category-detail-icon blue">
+                  <Package size={18} />
+                </div>
+                <div>
+                  <span>Products Variety</span>
+                  <strong>{categoryStats.totalProducts} Products</strong>
+                </div>
+              </div>
+
+              <div className="category-detail-box">
+                <div className="category-detail-icon green">
+                  <Layers size={18} />
+                </div>
+                <div>
+                  <span>Total Stock Qty</span>
+                  <strong>{categoryStats.totalUnits} Units</strong>
+                </div>
+              </div>
+
+              <div className="category-detail-box">
+                <div className="category-detail-icon purple">
+                  <IndianRupee size={18} />
+                </div>
+                <div>
+                  <span>Total Stock Value</span>
+                  <strong>{formatCurrency(categoryStats.totalValue)}</strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Products Section */}
+            <div className="category-products-section">
+              <div className="category-products-header">
+                <div>
+                  <h3>
+                    Products in &ldquo;{selectedCategory.name}&rdquo;
+                  </h3>
+                  <span>
+                    Showing {displayedCategoryProducts.length} of{" "}
+                    {categoryModalProducts.length} items
+                  </span>
+                </div>
+
+                {categoryModalProducts.length > 0 && (
+                  <label className="category-modal-search">
+                    <Search size={15} />
+                    <input
+                      type="search"
+                      placeholder="Search product name or ID..."
+                      value={categoryProductSearch}
+                      onChange={(e) => setCategoryProductSearch(e.target.value)}
+                    />
+                  </label>
+                )}
+              </div>
+
+              {categoryProductsLoading && categoryModalProducts.length === 0 ? (
+                <div className="details-loading">
+                  Loading products for {selectedCategory.name}...
+                </div>
+              ) : displayedCategoryProducts.length === 0 ? (
+                <div className="empty-assigned-products">
+                  <div className="empty-assigned-icon">
+                    <Package size={24} />
+                  </div>
+                  <h4>
+                    {categoryModalProducts.length === 0
+                      ? "No products in this category yet"
+                      : "No matching products found"}
+                  </h4>
+                  <p>
+                    {categoryModalProducts.length === 0
+                      ? `Add products under "${selectedCategory.name}" from the Products page.`
+                      : "Try clearing your search filter."}
+                  </p>
+                  {categoryModalProducts.length === 0 && (
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() => {
+                        setSelectedCategory(null);
+                        navigate("/products");
+                      }}
+                    >
+                      <Plus size={15} />
+                      Go to Products Page
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="assigned-products-table-wrapper">
+                  <table className="assigned-products-table">
+                    <thead>
+                      <tr>
+                        <th>PRODUCT</th>
+                        <th>UNIT PRICE</th>
+                        <th>STOCK QTY</th>
+                        <th>STOCK VALUE</th>
+                        <th>STATUS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {displayedCategoryProducts.map((prod) => {
+                        const stockValue =
+                          Number(prod.price || 0) * Number(prod.quantity || 0);
+                        const isOut = prod.quantity <= 0;
+                        const isLow = prod.quantity > 0 && prod.quantity < 11;
+
+                        return (
+                          <tr key={prod.id}>
+                            <td>
+                              <div className="assigned-product-cell">
+                                <div className="assigned-product-icon">
+                                  <Package size={16} />
+                                </div>
+                                <div>
+                                  <strong className="assigned-product-name">
+                                    {prod.name}
+                                  </strong>
+                                  <span className="assigned-product-id">
+                                    ID #{prod.id}
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+
+                            <td className="assigned-product-price">
+                              {formatCurrency(prod.price)}
+                            </td>
+
+                            <td>
+                              <span className="assigned-product-qty">
+                                <strong>{prod.quantity}</strong> units
+                              </span>
+                            </td>
+
+                            <td className="assigned-product-value">
+                              {formatCurrency(stockValue)}
+                            </td>
+
+                            <td>
+                              <span
+                                className={`category-status ${
+                                  isOut
+                                    ? "out"
+                                    : isLow
+                                    ? "empty"
+                                    : "active"
+                                }`}
+                              >
+                                <span className="category-status-dot" />
+                                {isOut
+                                  ? "Out of Stock"
+                                  : isLow
+                                  ? "Low Stock"
+                                  : "In Stock"}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="category-form-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => setSelectedCategory(null)}
+              >
+                Close
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {/* Add / Edit Category Modal */}
       {showForm && (
         <div
           className="category-modal-backdrop"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setShowForm(false);
-          }}
+          onClick={() => setShowForm(false)}
         >
           <section
             className="category-modal"
             role="dialog"
             aria-modal="true"
             aria-labelledby="category-modal-title"
+            onClick={(e) => e.stopPropagation()}
           >
             <div className="category-modal-heading">
               <div>
@@ -436,8 +852,6 @@ export default function Categories() {
           </section>
         </div>
       )}
-
-
     </div>
   );
 }
