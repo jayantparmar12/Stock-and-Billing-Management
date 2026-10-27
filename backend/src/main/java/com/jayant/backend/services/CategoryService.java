@@ -2,7 +2,9 @@ package com.jayant.backend.services;
 
 import com.jayant.backend.DTO.ApiResponse;
 import com.jayant.backend.DTO.CategoryResponse;
+import com.jayant.backend.DTO.ProductResponse;
 import com.jayant.backend.Entity.Category;
+import com.jayant.backend.Entity.Product;
 import com.jayant.backend.Entity.Shop;
 import com.jayant.backend.repository.CategoryRepo;
 import com.jayant.backend.repository.ProductRepo;
@@ -84,6 +86,28 @@ public class CategoryService {
 
         categoryRepo.delete(existing);
         return new ApiResponse<>(true, "Category deleted successfully", null);
+    }
+
+    public ApiResponse<List<ProductResponse>> getProductsByCategory(Integer categoryId) {
+        Integer shopId = currentUserService.getCurrentShopId();
+        Category category = categoryRepo.findByIdAndShopId(categoryId, shopId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Category Not Found with id : " + categoryId
+                ));
+
+        List<Product> products = productRepo.findByCategoryIdAndShopId(category.getId(), shopId);
+        List<ProductResponse> responses = products.stream()
+                .map(p -> ProductResponse.builder()
+                        .id(p.getId())
+                        .name(p.getProduct())
+                        .category(category.getName())
+                        .price(p.getPrice())
+                        .quantity(p.getQuantity())
+                        .build())
+                .toList();
+
+        return new ApiResponse<>(true, "Products in category: " + category.getName(), responses);
     }
 
     private CategoryResponse mapToResponse(Category category, Integer shopId) {

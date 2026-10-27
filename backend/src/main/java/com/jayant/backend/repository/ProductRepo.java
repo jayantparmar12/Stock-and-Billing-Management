@@ -14,4 +14,5 @@ public interface ProductRepo extends JpaRepository<Product, Integer> {
     long countByShopId(Integer shopId);
     long countByShopIdAndQuantityLessThan(Integer shopId, Integer threshold);
     long countByCategoryIdAndShopId(Integer categoryId, Integer shopId);
+    List<Product> findByCategoryIdAndShopId(Integer categoryId, Integer shopId);
 }

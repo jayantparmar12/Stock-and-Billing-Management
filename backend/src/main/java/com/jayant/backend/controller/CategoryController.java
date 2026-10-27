@@ -2,6 +2,7 @@ package com.jayant.backend.controller;
 
 import com.jayant.backend.DTO.ApiResponse;
 import com.jayant.backend.DTO.CategoryResponse;
+import com.jayant.backend.DTO.ProductResponse;
 import com.jayant.backend.Entity.Category;
 import com.jayant.backend.services.CategoryService;
 import jakarta.validation.Valid;
@@ -40,5 +41,10 @@ public class CategoryController {
     @DeleteMapping("/{id}")
     public ApiResponse<Void> deleteCategory(@PathVariable Integer id) {
         return categoryService.deleteCategory(id);
+    }
+
+    @GetMapping("/{id}/products")
+    public ApiResponse<List<ProductResponse>> getProductsByCategory(@PathVariable Integer id) {
+        return categoryService.getProductsByCategory(id);
     }
 }
