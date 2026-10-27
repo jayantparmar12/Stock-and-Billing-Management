@@ -16,6 +16,7 @@ import {
   X,
   FileText,
   RotateCcw,
+  Printer,
 } from "lucide-react";
 import "./Billing.css";
 import api from "../../services/api";
@@ -52,6 +53,14 @@ function getErrorMessage(err, fallback) {
   );
 }
 
+function escapeHtml(str) {
+  return String(str ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 function normalizeProduct(raw) {
   if (!raw) return null;
   const categoryName =
@@ -81,6 +90,7 @@ function normalizeCustomer(raw) {
       raw.email ??
       "",
     email: raw.email ?? "",
+    address: raw.address ?? "",
   };
 }
 
@@ -151,6 +161,7 @@ export default function Billing() {
   // Page Feedback Banners
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [lastCreatedBill, setLastCreatedBill] = useState(null);
 
   // Create Bill States
   const [selectedCustomer, setSelectedCustomer] = useState("");
@@ -163,12 +174,12 @@ export default function Billing() {
   // Bills History Live Filter States
   const [customerKeyword, setCustomerKeyword] = useState("");
   const [filterCustomerId, setFilterCustomerId] = useState("All");
-  const [statusFilter, setStatusFilter] = useState("ALL"); // "ALL" | "ACTIVE" | "CANCELLED" | "PAID" | "PARTIAL" | "UNPAID"
+  const [statusFilter, setStatusFilter] = useState("ALL");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [activeFilterLabel, setActiveFilterLabel] = useState("");
 
-  // Bill Details Modal States (GET /api/bill/{id}, /{id}/payments, /{id}/refunds)
+  // Bill Details Modal States
   const [showBillModal, setShowBillModal] = useState(false);
   const [selectedBill, setSelectedBill] = useState(null);
   const [billPayments, setBillPayments] = useState([]);
@@ -179,6 +190,312 @@ export default function Billing() {
   const [cancelSubmitting, setCancelSubmitting] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [modalFeedback, setModalFeedback] = useState({ type: "", message: "" });
+
+  // Print Bill / Invoice Function (Works from Table, Modal, or Success Banner)
+  const handlePrintBill = useCallback((billToPrint) => {
+    if (!billToPrint) return;
+
+    let user = {};
+    try {
+      user = JSON.parse(localStorage.getItem("user") || "{}") || {};
+    } catch {
+      user = {};
+    }
+
+    const shopName = user.shopName || "My Shop Workspace";
+    const shopCode = user.shopCode ? `Shop Code: ${user.shopCode}` : "";
+    const billCode = `BILL-${String(billToPrint.id).padStart(4, "0")}`;
+    const totalAmt = Number(billToPrint.totalAmount ?? 0);
+    const paidAmt = Number(billToPrint.paidAmount ?? 0);
+    const isCancelled = billToPrint.status === "CANCELLED";
+    const dueAmt = isCancelled ? 0 : Math.max(0, totalAmt - paidAmt);
+    const paymentStatus = billToPrint.paymentStatus || "UNPAID";
+    const items = Array.isArray(billToPrint.items) ? billToPrint.items : [];
+    const totalUnits = items.reduce(
+      (sum, item) => sum + Number(item.quantity ?? 0),
+      0
+    );
+
+    const rowsHtml =
+      items.length > 0
+        ? items
+            .map(
+              (item, index) => `
+          <tr>
+            <td>${index + 1}</td>
+            <td><strong>${escapeHtml(item.productName)}</strong></td>
+            <td style="text-align: right;">${formatCurrency(item.unitPrice)}</td>
+            <td style="text-align: center;">${Number(item.quantity ?? 0)}</td>
+            <td style="text-align: right;"><strong>${formatCurrency(
+              item.itemTotal
+            )}</strong></td>
+          </tr>`
+            )
+            .join("")
+        : `<tr><td colspan="5" style="text-align:center; padding: 16px;">No items listed</td></tr>`;
+
+    const invoiceHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Invoice ${escapeHtml(billCode)} - ${escapeHtml(shopName)}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #1e293b;
+      margin: 0;
+      padding: 28px;
+      background: #ffffff;
+    }
+    .invoice-box {
+      max-width: 760px;
+      margin: 0 auto;
+      border: 1px solid #cbd5e1;
+      border-radius: 12px;
+      padding: 28px;
+    }
+    .invoice-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 2px solid #1e293b;
+      padding-bottom: 18px;
+      margin-bottom: 20px;
+      gap: 16px;
+    }
+    .shop-title {
+      margin: 0 0 4px;
+      font-size: 24px;
+      font-weight: 800;
+      color: #1e293b;
+    }
+    .shop-sub {
+      margin: 0;
+      font-size: 12px;
+      color: #64748b;
+      font-weight: 600;
+    }
+    .invoice-badge {
+      text-align: right;
+    }
+    .invoice-badge h2 {
+      margin: 0 0 4px;
+      font-size: 20px;
+      color: #3563e9;
+      letter-spacing: 0.5px;
+    }
+    .invoice-badge p {
+      margin: 0;
+      font-size: 12px;
+      color: #475569;
+    }
+    .meta-grid {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 22px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 14px 18px;
+    }
+    .meta-col h4 {
+      margin: 0 0 6px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: #64748b;
+    }
+    .meta-col p {
+      margin: 3px 0;
+      font-size: 13px;
+      color: #1e293b;
+    }
+    .status-pill {
+      display: inline-block;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      background: #edf2ff;
+      color: #3563e9;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 22px;
+    }
+    th {
+      background: #f1f5f9;
+      color: #334155;
+      font-size: 11px;
+      text-transform: uppercase;
+      padding: 11px 12px;
+      text-align: left;
+      border-bottom: 1px solid #cbd5e1;
+    }
+    td {
+      padding: 11px 12px;
+      font-size: 13px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .totals-wrap {
+      display: flex;
+      justify-content: flex-end;
+    }
+    .totals-card {
+      width: 290px;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 14px 16px;
+      background: #f8fafc;
+    }
+    .totals-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      margin-bottom: 8px;
+      color: #334155;
+    }
+    .totals-row.grand {
+      font-size: 16px;
+      font-weight: 800;
+      color: #1e293b;
+      border-top: 1px solid #cbd5e1;
+      padding-top: 10px;
+      margin-top: 8px;
+    }
+    .invoice-footer {
+      margin-top: 32px;
+      padding-top: 14px;
+      border-top: 1px dashed #cbd5e1;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: #64748b;
+    }
+    @media print {
+      body { padding: 0; }
+      .invoice-box { border: none; padding: 10px; max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="invoice-box">
+    <div class="invoice-header">
+      <div>
+        <h1 class="shop-title">${escapeHtml(shopName)}</h1>
+        <p class="shop-sub">${escapeHtml(shopCode || "Inventory & Billing Management")}</p>
+      </div>
+      <div class="invoice-badge">
+        <h2>INVOICE</h2>
+        <p><strong>${escapeHtml(billCode)}</strong> (#${escapeHtml(billToPrint.id)})</p>
+        <p>Date: ${escapeHtml(formatDateTime(billToPrint.billDate))}</p>
+      </div>
+    </div>
+
+    <div class="meta-grid">
+      <div class="meta-col">
+        <h4>Billed To (Customer)</h4>
+        <p><strong>${escapeHtml(
+          billToPrint.customer?.name || "Walk-in Customer"
+        )}</strong></p>
+        ${
+          billToPrint.customer?.phone
+            ? `<p>Phone: ${escapeHtml(billToPrint.customer.phone)}</p>`
+            : ""
+        }
+        ${
+          billToPrint.customer?.email
+            ? `<p>Email: ${escapeHtml(billToPrint.customer.email)}</p>`
+            : ""
+        }
+        ${
+          billToPrint.customer?.address
+            ? `<p>Address: ${escapeHtml(billToPrint.customer.address)}</p>`
+            : ""
+        }
+      </div>
+      <div class="meta-col" style="text-align: right;">
+        <h4>Payment & Bill Status</h4>
+        <p>Bill Status: <span class="status-pill">${escapeHtml(
+          billToPrint.status || "ACTIVE"
+        )}</span></p>
+        <p>Payment Status: <span class="status-pill">${escapeHtml(
+          isCancelled ? "REFUNDED / CANCELLED" : paymentStatus
+        )}</span></p>
+        <p>Total Items: ${items.length} (${totalUnits} units)</p>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 45px;">#</th>
+          <th>Product Description</th>
+          <th style="text-align: right;">Unit Price</th>
+          <th style="text-align: center;">Qty</th>
+          <th style="text-align: right;">Line Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rowsHtml}
+      </tbody>
+    </table>
+
+    <div class="totals-wrap">
+      <div class="totals-card">
+        <div class="totals-row">
+          <span>Total Amount</span>
+          <strong>${formatCurrency(totalAmt)}</strong>
+        </div>
+        <div class="totals-row">
+          <span>Amount Paid</span>
+          <strong style="color: #15803d;">${formatCurrency(paidAmt)}</strong>
+        </div>
+        ${
+          isCancelled && paidAmt > 0
+            ? `<div class="totals-row">
+                <span>Refunded Amount</span>
+                <strong style="color: #7e22ce;">${formatCurrency(paidAmt)}</strong>
+               </div>`
+            : ""
+        }
+        <div class="totals-row grand">
+          <span>Remaining Due</span>
+          <strong style="color: ${dueAmt > 0 ? "#dc2626" : "#1e293b"};">${formatCurrency(
+      dueAmt
+    )}</strong>
+        </div>
+      </div>
+    </div>
+
+    <div class="invoice-footer">
+      <span>Thank you for shopping at <strong>${escapeHtml(shopName)}</strong>!</span>
+      <span>Authorized Signatory</span>
+    </div>
+  </div>
+  <script>
+    window.onload = function () {
+      setTimeout(function () {
+        window.print();
+      }, 150);
+    };
+  </script>
+</body>
+</html>`;
+
+    const printWindow = window.open("", "_blank", "width=860,height=720");
+    if (printWindow) {
+      printWindow.document.open();
+      printWindow.document.write(invoiceHtml);
+      printWindow.document.close();
+    } else {
+      window.print();
+    }
+  }, []);
 
   // Fetch Customers & Products for Bill Creation
   const fetchCustomersAndProducts = useCallback(async () => {
@@ -214,7 +531,7 @@ export default function Billing() {
     }
   }, []);
 
-  // Fetch All Bills (GET /api/bill + fallback /api/payments & /api/refunds for status badges)
+  // Fetch All Bills
   const fetchAllBills = useCallback(async () => {
     try {
       setBillsLoading(true);
@@ -307,7 +624,7 @@ export default function Billing() {
     );
   }, [products, productSearch]);
 
-  // LIVE Instant Search & Status Filtering for All Bills table (No Enter/Button needed!)
+  // LIVE Instant Search & Status Filtering for All Bills table
   const displayedBills = useMemo(() => {
     const query = customerKeyword.trim().toLowerCase();
 
@@ -395,11 +712,12 @@ export default function Billing() {
     setCart((previous) => previous.filter((item) => item.id !== productId));
   };
 
-  // Create Bill Submit (POST /api/bill + optional PATCH /api/bill/bill_id/{id}/payment)
+  // Create Bill Submit
   const handleCreateBill = async (event) => {
     event.preventDefault();
     setErrorMessage("");
     setSuccessMessage("");
+    setLastCreatedBill(null);
 
     const customerIdNum = Number(selectedCustomer);
     if (
@@ -457,7 +775,6 @@ export default function Billing() {
       if (response.data?.success && response.data.data) {
         const createdBill = normalizeBill(response.data.data);
 
-        // If user selected immediate Full or Partial payment, record it via PATCH /api/bill/bill_id/{id}/payment
         if (paymentToRecord > 0 && createdBill?.id) {
           try {
             await api.patch(
@@ -475,6 +792,19 @@ export default function Billing() {
           }
         }
 
+        const printableCreatedBill = {
+          ...createdBill,
+          paidAmount: paymentToRecord,
+          paymentStatus:
+            paymentToRecord >= createdBill.totalAmount &&
+            createdBill.totalAmount > 0
+              ? "PAID"
+              : paymentToRecord > 0
+              ? "PARTIAL"
+              : "UNPAID",
+        };
+        setLastCreatedBill(printableCreatedBill);
+
         setSuccessMessage(
           `Bill #${createdBill.id} created for ${
             createdBill.customer?.name || "Customer"
@@ -485,7 +815,6 @@ export default function Billing() {
           }`
         );
 
-        // Reset form and refresh live stock & bills
         setCart([]);
         setSelectedCustomer("");
         setProductSearch("");
@@ -503,12 +832,10 @@ export default function Billing() {
     }
   };
 
-  // Optional Backend Search on Submit (while typing already filters instantly via displayedBills!)
   const handleSearchByCustomerName = (event) => {
     event.preventDefault();
   };
 
-  // Filter Bills by Customer ID (GET /api/bill/customer_id/{id})
   const handleFilterByCustomerId = async (value) => {
     setFilterCustomerId(value);
     if (value === "All") {
@@ -545,7 +872,6 @@ export default function Billing() {
     }
   };
 
-  // Filter Bills by Date Range (GET /api/bill/date-range?start=...&end=...)
   const handleDateRangeFilter = async (event) => {
     event.preventDefault();
     if (!startDate || !endDate) {
@@ -597,7 +923,7 @@ export default function Billing() {
     fetchAllBills();
   };
 
-  // Open Bill Details Modal (GET /api/bill/{id}, GET /api/bill/{id}/payments, GET /api/bill/{id}/refunds)
+  // Open Bill Details Modal
   const openBillDetails = async (billId, keepFeedback = false) => {
     setShowBillModal(true);
     setBillDetailsLoading(true);
@@ -637,7 +963,6 @@ export default function Billing() {
       setBillRefunds(refundsList);
 
       if (loadedBill) {
-        // Compute paidAmount & statuses from payments/refunds if DTO omits them
         const computedPaid = paymentsList.reduce(
           (sum, p) => sum + Number(p.amount ?? 0),
           0
@@ -673,7 +998,9 @@ export default function Billing() {
 
         setSelectedBill(enrichedBill);
         setBills((prev) =>
-          prev.map((item) => (item.id === enrichedBill.id ? enrichedBill : item))
+          prev.map((item) =>
+            item.id === enrichedBill.id ? enrichedBill : item
+          )
         );
       }
     } catch (err) {
@@ -686,7 +1013,7 @@ export default function Billing() {
     }
   };
 
-  // Record Payment on Existing Bill (PATCH /api/bill/bill_id/{id}/payment?payment=...)
+  // Record Payment on Existing Bill
   const handleUpdatePayment = async (amountOverride) => {
     if (!selectedBill) return;
 
@@ -756,7 +1083,7 @@ export default function Billing() {
     }
   };
 
-  // Cancel Bill (PATCH /api/bill/cancell_bill/{id})
+  // Cancel Bill
   const handleCancelBill = async () => {
     if (!selectedBill) return;
 
@@ -812,7 +1139,7 @@ export default function Billing() {
         <div>
           <h1>Billing & Invoices</h1>
           <p>
-            Create customer bills, record partial or full payments, and manage
+            Create customer bills, record partial or full payments, and print
             invoices.
           </p>
         </div>
@@ -856,6 +1183,28 @@ export default function Billing() {
         <div className="billing-success" role="status">
           <CheckCircle2 size={19} />
           <span>{successMessage}</span>
+          {lastCreatedBill && (
+            <button
+              type="button"
+              onClick={() => handlePrintBill(lastCreatedBill)}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "6px 12px",
+                borderRadius: "7px",
+                border: "1px solid #16a34a",
+                background: "#16a34a",
+                color: "#ffffff",
+                fontSize: "12px",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              <Printer size={14} />
+              Print Bill #{lastCreatedBill.id}
+            </button>
+          )}
           <button type="button" onClick={() => setSuccessMessage("")}>
             Dismiss
           </button>
@@ -1142,7 +1491,6 @@ export default function Billing() {
         /* All Bills & Filters Section */
         <section className="billing-history-panel">
           <div className="billing-filters-bar">
-            {/* Instant Live Search (Filters as you type — no Enter or button needed!) */}
             <form
               className="billing-search-form"
               onSubmit={handleSearchByCustomerName}
@@ -1158,7 +1506,6 @@ export default function Billing() {
               </div>
             </form>
 
-            {/* Filter by Customer Dropdown */}
             <div className="billing-customer-filter">
               <UserRound size={15} />
               <select
@@ -1175,7 +1522,6 @@ export default function Billing() {
               </select>
             </div>
 
-            {/* Filter by Bill / Payment Status */}
             <div className="billing-customer-filter">
               <select
                 value={statusFilter}
@@ -1296,19 +1642,39 @@ export default function Billing() {
                           {formatCurrency(bill.totalAmount)}
                         </td>
                         <td>
-                          <div style={{ display: "flex", flexDirection: "column", gap: "2px", fontSize: "12px" }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: "2px",
+                              fontSize: "12px",
+                            }}
+                          >
                             <span style={{ color: "#15803d", fontWeight: 600 }}>
                               Paid: {formatCurrency(paidAmt)}
                             </span>
                             {dueAmt > 0 && (
-                              <span style={{ color: "#d97706", fontSize: "11px", fontWeight: 600 }}>
+                              <span
+                                style={{
+                                  color: "#d97706",
+                                  fontSize: "11px",
+                                  fontWeight: 600,
+                                }}
+                              >
                                 Due: {formatCurrency(dueAmt)}
                               </span>
                             )}
                           </div>
                         </td>
                         <td>
-                          <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: "6px",
+                              alignItems: "center",
+                              flexWrap: "wrap",
+                            }}
+                          >
                             <span
                               className={`bill-status-badge ${
                                 bill.status === "CANCELLED"
@@ -1330,14 +1696,31 @@ export default function Billing() {
                           </div>
                         </td>
                         <td onClick={(e) => e.stopPropagation()}>
-                          <button
-                            type="button"
-                            className="billing-view-btn"
-                            onClick={() => openBillDetails(bill.id)}
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "6px",
+                            }}
                           >
-                            <Eye size={15} />
-                            Manage / Pay
-                          </button>
+                            <button
+                              type="button"
+                              className="billing-view-btn"
+                              onClick={() => openBillDetails(bill.id)}
+                            >
+                              <Eye size={15} />
+                              Manage / Pay
+                            </button>
+                            <button
+                              type="button"
+                              className="billing-reset-btn"
+                              title={`Print Bill #${bill.id}`}
+                              onClick={() => handlePrintBill(bill)}
+                            >
+                              <Printer size={15} />
+                              Print
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1358,7 +1741,7 @@ export default function Billing() {
         </section>
       )}
 
-      {/* Bill Details, Payment Update & Cancel Modal */}
+      {/* Bill Details, Payment Update, Print & Cancel Modal */}
       {showBillModal && (
         <div
           className="billing-modal-backdrop"
@@ -1395,19 +1778,35 @@ export default function Billing() {
                   )}
                 </h2>
                 <p>
-                  Created on {formatDateTime(selectedBill?.billDate)} • Customer:{" "}
+                  Created on {formatDateTime(selectedBill?.billDate)} •
+                  Customer:{" "}
                   <strong>{selectedBill?.customer?.name || "—"}</strong>
                 </p>
               </div>
 
-              <button
-                type="button"
-                className="billing-modal-close"
-                onClick={() => setShowBillModal(false)}
-                aria-label="Close modal"
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "8px" }}
               >
-                <X size={18} />
-              </button>
+                {selectedBill && (
+                  <button
+                    type="button"
+                    className="billing-view-btn"
+                    onClick={() => handlePrintBill(selectedBill)}
+                  >
+                    <Printer size={15} />
+                    Print Invoice
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  className="billing-modal-close"
+                  onClick={() => setShowBillModal(false)}
+                  aria-label="Close modal"
+                >
+                  <X size={18} />
+                </button>
+              </div>
             </div>
 
             {billDetailsLoading ? (
@@ -1486,7 +1885,9 @@ export default function Billing() {
                           </h3>
                           <p>
                             Update full or partial payment for this bill (
-                            <code>PATCH /api/bill/bill_id/{selectedBill.id}/payment</code>
+                            <code>
+                              PATCH /api/bill/bill_id/{selectedBill.id}/payment
+                            </code>
                             ).
                           </p>
                         </div>
@@ -1578,7 +1979,7 @@ export default function Billing() {
                   </div>
                 </div>
 
-                {/* Cancel Bill Footer Action (PATCH /api/bill/cancell_bill/{id}) */}
+                {/* Cancel Bill Footer Action */}
                 {selectedBill.status !== "CANCELLED" && (
                   <div className="bill-cancel-footer">
                     {!confirmCancel ? (
