@@ -14,7 +14,6 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("api/payments")
-@CrossOrigin(origins = "http://localhost:5173")
 public class PaymentController {
 
     private final PaymentRepo paymentRepo;

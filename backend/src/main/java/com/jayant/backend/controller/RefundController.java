@@ -13,7 +13,6 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("api/refunds")
-@CrossOrigin(origins = "http://localhost:5173")
 public class RefundController {
 
     private final RefundRepo refundRepo;
