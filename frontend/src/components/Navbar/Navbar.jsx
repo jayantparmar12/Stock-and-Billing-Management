@@ -36,7 +36,6 @@ export default function Navbar() {
   return (
     <>
       <header className="top-navbar">
-        {/* Left: Mobile Hamburger Button + Shop Name & Copyable Shop Code */}
         <div className="top-navbar-left">
           <button
             type="button"
@@ -65,7 +64,6 @@ export default function Navbar() {
           )}
         </div>
 
-        {/* Right: Desktop-Only User Profile & Logout (Hidden on Mobile/Tablet <= 1024px) */}
         <div className="top-navbar-right">
           <div className="navbar-user-chip">
             <UserCheck size={15} />
@@ -92,7 +90,6 @@ export default function Navbar() {
         </div>
       </header>
 
-      {/* Logout Confirmation Dialog Modal */}
       {showLogoutModal && (
         <div
           className="logout-modal-backdrop"
