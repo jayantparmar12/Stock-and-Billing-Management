@@ -14,15 +14,57 @@ import {
   AlertTriangle,
   History,
   Filter,
+  Scale,
 } from "lucide-react";
 import "./Products.css";
 import api from "../../services/api";
+
+export const UNIT_OPTIONS = [
+  { value: "pcs", label: "Pieces / Unit (pcs)", shortLabel: "pcs" },
+  { value: "unit", label: "Unit (unit)", shortLabel: "unit" },
+  { value: "kg", label: "Kilogram (kg)", shortLabel: "kg" },
+  { value: "g", label: "Gram (g)", shortLabel: "g" },
+  { value: "ltr", label: "Litre (ltr)", shortLabel: "ltr" },
+  { value: "ml", label: "Millilitre (ml)", shortLabel: "ml" },
+  { value: "box", label: "Box (box)", shortLabel: "box" },
+  { value: "pack", label: "Packet / Pack (pack)", shortLabel: "pack" },
+  { value: "dozen", label: "Dozen (dozen)", shortLabel: "dozen" },
+  { value: "m", label: "Meter (m)", shortLabel: "m" },
+];
+
+const UNIT_STORAGE_KEY = "inventory_product_units";
+
+function getStoredUnitsMap() {
+  try {
+    return JSON.parse(localStorage.getItem(UNIT_STORAGE_KEY) || "{}") || {};
+  } catch {
+    return {};
+  }
+}
+
+function saveStoredUnit(productId, unit) {
+  if (!productId || !unit) return;
+  try {
+    const map = getStoredUnitsMap();
+    map[String(productId)] = unit;
+    localStorage.setItem(UNIT_STORAGE_KEY, JSON.stringify(map));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+function formatUnitLabel(unitValue) {
+  const clean = String(unitValue || "pcs").trim().toLowerCase();
+  const found = UNIT_OPTIONS.find((u) => u.value.toLowerCase() === clean);
+  return found ? found.shortLabel : clean || "pcs";
+}
 
 const emptyForm = {
   name: "",
   category: "",
   price: "",
   quantity: "",
+  unit: "pcs",
 };
 
 function formatCurrency(value) {
@@ -43,8 +85,8 @@ function getStockStatus(quantity, threshold = 10) {
 }
 
 /**
- * Normalizes both ProductResponse DTO ({ id, name, category: "Name", price, quantity })
- * and Product Entity ({ id, product: "Name", category: { id, name }, price, quantity })
+ * Normalizes both ProductResponse DTO ({ id, name, category: "Name", price, quantity, unit })
+ * and Product Entity ({ id, product: "Name", category: { id, name }, price, quantity, unit })
  * into a single consistent shape.
  */
 function normalizeProduct(raw) {
@@ -60,6 +102,16 @@ function normalizeProduct(raw) {
       ? raw.category.id
       : undefined;
 
+  const storedUnits = getStoredUnitsMap();
+  const backendUnit = raw.unit ?? raw.unitType ?? raw.measurementUnit;
+  const resolvedUnit = formatUnitLabel(
+    backendUnit || storedUnits[String(raw.id)] || "pcs"
+  );
+
+  if (raw.id && backendUnit) {
+    saveStoredUnit(raw.id, resolvedUnit);
+  }
+
   return {
     id: raw.id,
     name: raw.name ?? raw.product ?? "",
@@ -67,6 +119,7 @@ function normalizeProduct(raw) {
     categoryId,
     price: Number(raw.price ?? 0),
     quantity: Number(raw.quantity ?? 0),
+    unit: resolvedUnit,
   };
 }
 
@@ -82,7 +135,7 @@ function normalizeStockMovement(entry, index) {
     entry.previousQuantity ??
     entry.beforeQuantity ??
     entry.oldQuantity ??
-    entry.previousStock ??
+    entry.beforeStock ??
     entry.oldStock ??
     entry.initialStock;
   const after =
@@ -137,6 +190,7 @@ export default function Products() {
   // Filter & Search States
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All");
+  const [unitFilter, setUnitFilter] = useState("All");
   const [stockFilter, setStockFilter] = useState("All");
   const [lowStockThreshold, setLowStockThreshold] = useState(10);
   const [isLowStockApiActive, setIsLowStockApiActive] = useState(false);
@@ -276,6 +330,8 @@ export default function Products() {
     if (!selectedProduct) return;
 
     const quantity = Number(stockQuantity);
+    const unitLabel = selectedProduct.unit || "pcs";
+
     if (!Number.isInteger(quantity) || quantity <= 0) {
       setStockFeedback({
         type: "error",
@@ -287,7 +343,7 @@ export default function Products() {
     if (action === "decrease" && quantity > selectedProduct.quantity) {
       setStockFeedback({
         type: "error",
-        message: `Insufficient stock. Available quantity is ${selectedProduct.quantity}.`,
+        message: `Insufficient stock. Available quantity is ${selectedProduct.quantity} ${unitLabel}.`,
       });
       return;
     }
@@ -306,7 +362,10 @@ export default function Products() {
       });
 
       if (response.data?.success) {
-        const updated = normalizeProduct(response.data.data);
+        const updated = normalizeProduct({
+          ...response.data.data,
+          unit: response.data.data?.unit || selectedProduct.unit,
+        });
         if (updated) {
           setSelectedProduct(updated);
           setProducts((prev) =>
@@ -331,8 +390,8 @@ export default function Products() {
           type: "success",
           message:
             action === "increase"
-              ? `Added +${quantity} units to stock.`
-              : `Removed -${quantity} units from stock.`,
+              ? `Added +${quantity} ${unitLabel} to stock.`
+              : `Removed -${quantity} ${unitLabel} from stock.`,
         });
       } else {
         setStockFeedback({
@@ -353,7 +412,7 @@ export default function Products() {
     }
   };
 
-  // Filtered products based on Search, Category Filter, and Stock Status Filter
+  // Filtered products based on Search, Category Filter, Unit Filter, and Stock Status Filter
   const filteredProducts = useMemo(() => {
     const query = search.toLowerCase().trim();
 
@@ -362,12 +421,17 @@ export default function Products() {
         !query ||
         product.name.toLowerCase().includes(query) ||
         product.category.toLowerCase().includes(query) ||
+        (product.unit || "").toLowerCase().includes(query) ||
         String(product.id).includes(query) ||
         `prd-${product.id}`.includes(query);
 
       const matchesCategory =
         categoryFilter === "All" ||
         product.category.toLowerCase() === categoryFilter.toLowerCase();
+
+      const matchesUnit =
+        unitFilter === "All" ||
+        (product.unit || "pcs").toLowerCase() === unitFilter.toLowerCase();
 
       const statusLabel = getStockStatus(
         product.quantity,
@@ -376,9 +440,16 @@ export default function Products() {
       const matchesStock =
         stockFilter === "All" || statusLabel === stockFilter;
 
-      return matchesSearch && matchesCategory && matchesStock;
+      return matchesSearch && matchesCategory && matchesUnit && matchesStock;
     });
-  }, [products, search, categoryFilter, stockFilter, lowStockThreshold]);
+  }, [
+    products,
+    search,
+    categoryFilter,
+    unitFilter,
+    stockFilter,
+    lowStockThreshold,
+  ]);
 
   // Open Add Product Modal
   const openAddForm = () => {
@@ -405,6 +476,7 @@ export default function Products() {
       category: matchedCategory ? String(matchedCategory.id) : "",
       price: String(product.price),
       quantity: String(product.quantity),
+      unit: product.unit || "pcs",
     });
 
     setFormError("");
@@ -419,6 +491,7 @@ export default function Products() {
     const price = Number(form.price);
     const quantity = Number(form.quantity);
     const categoryId = Number(form.category);
+    const unit = formatUnitLabel(form.unit || "pcs");
 
     if (
       !name ||
@@ -467,11 +540,16 @@ export default function Products() {
           category: categoryId,
           price,
           quantity,
+          unit,
         };
 
         const response = await api.put("/api/products", payload);
         if (response.data?.success) {
-          const updated = normalizeProduct(response.data.data);
+          saveStoredUnit(editingId, unit);
+          const updated = normalizeProduct({
+            ...response.data.data,
+            unit: response.data.data?.unit || unit,
+          });
           setProducts((prev) =>
             prev.map((item) => (item.id === editingId ? updated : item))
           );
@@ -490,11 +568,19 @@ export default function Products() {
           category: categoryId,
           price,
           quantity,
+          unit,
         };
 
         const response = await api.post("/api/products", payload);
         if (response.data?.success) {
-          const created = normalizeProduct(response.data.data);
+          const newId = response.data.data?.id;
+          if (newId) {
+            saveStoredUnit(newId, unit);
+          }
+          const created = normalizeProduct({
+            ...response.data.data,
+            unit: response.data.data?.unit || unit,
+          });
           setProducts((prev) => [...prev, created]);
           setShowForm(false);
           setForm(emptyForm);
@@ -568,7 +654,10 @@ export default function Products() {
       <div className="products-heading">
         <div>
           <h1>Products</h1>
-          <p>Manage your product catalogue, pricing, and live inventory levels.</p>
+          <p>
+            Manage your product catalogue, measurement units (kg, ltr, pcs), and
+            live inventory levels.
+          </p>
         </div>
 
         <div className="products-heading-actions">
@@ -579,7 +668,7 @@ export default function Products() {
             disabled={loading}
             title="Refresh product list"
           >
-            <RefreshCw size={15} className={loading ? "spin-icon" : ""}/>
+            <RefreshCw size={15} className={loading ? "spin-icon" : ""} />
             Refresh
           </button>
 
@@ -688,7 +777,9 @@ export default function Products() {
         <div className="products-toolbar">
           <div>
             <h3>
-              {isLowStockApiActive ? `Low stock`:stockFilter} Products
+              {isLowStockApiActive
+                ? `Low Stock Products (Threshold < ${lowStockThreshold})`
+                : "All Products"}
             </h3>
             <p>{filteredProducts.length} products shown</p>
           </div>
@@ -698,7 +789,7 @@ export default function Products() {
               <Search size={16} />
               <input
                 type="search"
-                placeholder="Search by name, ID, category..."
+                placeholder="Search by name, ID, category, unit..."
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
               />
@@ -714,6 +805,22 @@ export default function Products() {
                 {categories.map((category) => (
                   <option key={category.id} value={category.name}>
                     {category.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={15} />
+            </label>
+
+            <label className="product-select">
+              <select
+                value={unitFilter}
+                onChange={(e) => setUnitFilter(e.target.value)}
+                aria-label="Filter by unit type"
+              >
+                <option value="All">All Units</option>
+                {UNIT_OPTIONS.map((u) => (
+                  <option key={u.value} value={u.value}>
+                    {u.label}
                   </option>
                 ))}
               </select>
@@ -774,7 +881,7 @@ export default function Products() {
                 <th>ID</th>
                 <th>PRODUCT</th>
                 <th>CATEGORY</th>
-                <th>PRICE</th>
+                <th>PRICE / UNIT</th>
                 <th>QUANTITY</th>
                 <th>STATUS</th>
                 <th>ACTIONS</th>
@@ -794,6 +901,7 @@ export default function Products() {
                     product.quantity,
                     effectiveThreshold
                   );
+                  const unitLabel = product.unit || "pcs";
 
                   return (
                     <tr
@@ -826,11 +934,20 @@ export default function Products() {
                       </td>
                       <td className="product-price">
                         {formatCurrency(product.price)}
+                        <span className="product-price-unit">
+                          {" "}
+                          / {unitLabel}
+                        </span>
                       </td>
                       <td>
-                        <strong className="product-qty-value">
-                          {product.quantity}
-                        </strong>
+                        <div className="product-qty-cell">
+                          <strong className="product-qty-value">
+                            {product.quantity}
+                          </strong>
+                          <span className="product-unit-badge">
+                            {unitLabel}
+                          </span>
+                        </div>
                       </td>
                       <td>
                         <span className={`product-status ${status.className}`}>
@@ -934,12 +1051,17 @@ export default function Products() {
                     <strong>{selectedProduct.category || "—"}</strong>
                   </div>
                   <div className="details-info-item">
-                    <span>Unit Price</span>
-                    <strong>{formatCurrency(selectedProduct.price)}</strong>
+                    <span>Price per {selectedProduct.unit || "pcs"}</span>
+                    <strong>
+                      {formatCurrency(selectedProduct.price)} /{" "}
+                      {selectedProduct.unit || "pcs"}
+                    </strong>
                   </div>
                   <div className="details-info-item">
                     <span>Available Stock</span>
-                    <strong>{selectedProduct.quantity} units</strong>
+                    <strong>
+                      {selectedProduct.quantity} {selectedProduct.unit || "pcs"}
+                    </strong>
                   </div>
                   <div className="details-info-item">
                     <span>Total Stock Value</span>
@@ -954,7 +1076,9 @@ export default function Products() {
                 {/* Stock Increase / Decrease Section */}
                 <div className="stock-controls">
                   <div className="stock-controls-header">
-                    <h3>Manage Stock</h3>
+                    <h3>
+                      Manage Stock ({selectedProduct.unit || "pcs"})
+                    </h3>
                     <span
                       className={`product-status ${
                         getStockStatus(
@@ -974,7 +1098,7 @@ export default function Products() {
                   </div>
 
                   <div className="stock-quick-presets">
-                    <span>Quick presets:</span>
+                    <span>Quick presets ({selectedProduct.unit || "pcs"}):</span>
                     {[1, 5, 10, 25, 50].map((preset) => (
                       <button
                         key={preset}
@@ -984,7 +1108,7 @@ export default function Products() {
                         }`}
                         onClick={() => setStockQuantity(String(preset))}
                       >
-                        {preset}
+                        +{preset} {selectedProduct.unit || "pcs"}
                       </button>
                     ))}
                   </div>
@@ -997,7 +1121,9 @@ export default function Products() {
                       step="1"
                       value={stockQuantity}
                       onChange={(event) => setStockQuantity(event.target.value)}
-                      placeholder="Enter quantity (e.g. 10)"
+                      placeholder={`Enter quantity in ${
+                        selectedProduct.unit || "pcs"
+                      } (e.g. 10)`}
                     />
 
                     <div className="stock-action-buttons">
@@ -1055,7 +1181,6 @@ export default function Products() {
                             <th>QTY</th>
                             <th>STOCK CHANGE</th>
                             <th>NOTE</th>
-                            <th>Date</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1064,7 +1189,8 @@ export default function Products() {
                               movement.type.includes("IN") ||
                               (movement.after !== undefined &&
                                 movement.before !== undefined &&
-                                movement.after > movement.previous_stock);
+                                movement.after > movement.before);
+                            const unitLabel = selectedProduct.unit || "pcs";
 
                             return (
                               <tr key={movement.id}>
@@ -1080,17 +1206,16 @@ export default function Products() {
                                 <td>
                                   <strong>
                                     {isIncrease ? "+" : "-"}
-                                    {movement.quantity}
+                                    {movement.quantity} {unitLabel}
                                   </strong>
                                 </td>
                                 <td>
                                   {movement.before !== undefined &&
                                   movement.after !== undefined
-                                    ? `${movement.before} → ${movement.after}`
+                                    ? `${movement.before} ${unitLabel} → ${movement.after} ${unitLabel}`
                                     : "—"}
                                 </td>
                                 <td>{movement.note}</td>
-                                <td>{new Date(movement.timestamp).toLocaleString()}</td>
                               </tr>
                             );
                           })}
@@ -1126,8 +1251,8 @@ export default function Products() {
                 </h2>
                 <p>
                   {editingId !== null
-                    ? "Update product details and category assignment."
-                    : "Enter the details for your new product."}
+                    ? "Update product details, measurement unit, and category."
+                    : "Enter the details and measurement unit for your new product."}
                 </p>
               </div>
 
@@ -1143,14 +1268,14 @@ export default function Products() {
 
             <form onSubmit={handleSubmit}>
               <div className="product-form-grid">
-                <label>
+                <label className="full-width-field">
                   Product Name
                   <input
                     value={form.name}
                     onChange={(event) =>
                       setForm({ ...form, name: event.target.value })
                     }
-                    placeholder="e.g. Wireless Mouse"
+                    placeholder="e.g. Basmati Rice, Amul Milk, Wireless Mouse"
                     required
                   />
                 </label>
@@ -1177,7 +1302,27 @@ export default function Products() {
                 </label>
 
                 <label>
-                  Price (₹)
+                  Unit Type (Measurement)
+                  <select
+                    value={form.unit}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        unit: event.target.value,
+                      })
+                    }
+                    required
+                  >
+                    {UNIT_OPTIONS.map((unitOption) => (
+                      <option key={unitOption.value} value={unitOption.value}>
+                        {unitOption.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  Price per {formatUnitLabel(form.unit)} (₹)
                   <input
                     type="number"
                     min="0.01"
@@ -1192,7 +1337,7 @@ export default function Products() {
                 </label>
 
                 <label>
-                  Initial / Current Quantity
+                  Initial / Current Quantity ({formatUnitLabel(form.unit)})
                   <input
                     type="number"
                     min="0"
@@ -1201,7 +1346,7 @@ export default function Products() {
                     onChange={(event) =>
                       setForm({ ...form, quantity: event.target.value })
                     }
-                    placeholder="0"
+                    placeholder={`0 ${formatUnitLabel(form.unit)}`}
                     required
                   />
                 </label>

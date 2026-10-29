@@ -25,4 +25,6 @@ public class ProductRequest {
     private Double price;
     @NotNull(message = "Category is Required")
     private Integer  category;
+
+    private String unit;
 }

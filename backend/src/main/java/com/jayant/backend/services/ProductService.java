@@ -43,6 +43,7 @@ public class ProductService {
         product.setPrice(productRequest.getPrice());
         product.setProduct(productRequest.getName());
         product.setShop(currentShop);
+        product.setUnit(productRequest.getUnit() != null && !productRequest.getUnit().isBlank() ? productRequest.getUnit() : "pcs");
         product = productRepo.save(product);
 
         return new ApiResponse<>(true, "Product created", productToProductResponse(product));
@@ -94,6 +95,10 @@ public class ProductService {
                         HttpStatus.NOT_FOUND,
                         "Category Not Found with id : " + productRequest.getCategory()
                 ));
+
+        if (productRequest.getUnit() != null && !productRequest.getUnit().isBlank()) {
+            product.setUnit(productRequest.getUnit());
+        }
 
         product.setQuantity(productRequest.getQuantity());
         product.setProduct(productRequest.getName());
@@ -170,6 +175,7 @@ public class ProductService {
                 .id(product.getId())
                 .quantity(product.getQuantity())
                 .price(product.getPrice())
+                .unit(product.getUnit() != null ? product.getUnit() : "pcs")
                 .build();
     }
 }

@@ -32,4 +32,7 @@ public class Product {
     @JoinColumn(name = "shop_id", nullable = false)
     @JsonIgnore
     private Shop shop;
+
+    @Column(nullable = false)
+    private String unit = "pcs";
 }

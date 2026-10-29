@@ -12,4 +12,5 @@ public class ProductResponse {
     private String category;
     private Integer quantity;
     private Double price;
+    private String unit;
 }
