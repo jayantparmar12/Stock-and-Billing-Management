@@ -25,4 +25,9 @@ public class AuthController {
     public ApiResponse<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         return authService.login(request);
     }
+
+    @GetMapping("/ping")
+    public String ping() {
+        return "OK";
+    }
 }
