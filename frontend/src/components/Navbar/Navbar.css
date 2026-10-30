@@ -7,9 +7,13 @@
   border-bottom: 1px solid #e2e8f0;
   gap: 12px;
   flex-wrap: nowrap;
-  position: sticky;
-  top: 0;
+  position: sticky !important;
+  top: 0 !important;
+  left: auto !important;
+  right: auto !important;
+  width: 100% !important;
   z-index: 900;
+  flex-shrink: 0;
 }
 
 .top-navbar-left {
@@ -146,6 +150,7 @@
   border-color: #dc2626;
 }
 
+/* Logout Confirmation Dialog Modal */
 .logout-modal-backdrop {
   position: fixed;
   inset: 0;
@@ -241,16 +246,16 @@
 }
 
 /* Mobile & Tablet (<= 1024px):
-   - Profile & Logout hidden
-   - Hamburger Menu + Company Name aligned strictly to the LEFT
-   - Shop Code neatly pushed to the right */
+   - Profile & Logout hidden in top navbar (present in Sidebar Drawer)
+   - Safe top padding so mobile status bar never overlaps navbar
+   - Company Name aligned strictly to the LEFT next to Hamburger Menu */
 @media (max-width: 1024px) {
   .mobile-menu-trigger {
     display: inline-flex;
   }
 
   .top-navbar {
-    padding: 10px 14px;
+    padding: max(10px, env(safe-area-inset-top, 10px)) 14px 10px;
   }
 
   .top-navbar-right {
@@ -268,8 +273,12 @@
 }
 
 @media (max-width: 480px) {
+  .top-navbar-left {
+    gap: 8px;
+  }
+
   .shop-badge {
-    max-width: 165px;
+    max-width: 150px;
     padding: 6px 10px;
     font-size: 12px;
   }

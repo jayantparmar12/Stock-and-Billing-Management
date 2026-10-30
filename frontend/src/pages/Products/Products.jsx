@@ -14,7 +14,6 @@ import {
   AlertTriangle,
   History,
   Filter,
-  Scale,
 } from "lucide-react";
 import "./Products.css";
 import api from "../../services/api";
@@ -84,11 +83,6 @@ function getStockStatus(quantity, threshold = 10) {
   return { label: "In stock", className: "in" };
 }
 
-/**
- * Normalizes both ProductResponse DTO ({ id, name, category: "Name", price, quantity, unit })
- * and Product Entity ({ id, product: "Name", category: { id, name }, price, quantity, unit })
- * into a single consistent shape.
- */
 function normalizeProduct(raw) {
   if (!raw) return null;
 
@@ -123,9 +117,6 @@ function normalizeProduct(raw) {
   };
 }
 
-/**
- * Extracts fields from a StockMovement record regardless of exact DTO/Entity naming.
- */
 function normalizeStockMovement(entry, index) {
   const type =
     entry.movementType ?? entry.type ?? entry.action ?? "ADJUSTMENT";
@@ -246,7 +237,6 @@ export default function Products() {
         setCategories(response.data.data);
       }
     } catch (err) {
-      // Keep page usable even if categories endpoint has a temporary issue
       console.error("Failed to load categories:", err);
     }
   }, []);
@@ -288,7 +278,7 @@ export default function Products() {
     }
   };
 
-  // Open Product Details + Stock History (GET /api/products/{id} & GET /api/products/{id}/stock-history)
+  // Open Product Details + Stock History
   const openProductDetails = async (id) => {
     setShowDetails(true);
     setDetailsLoading(true);
@@ -304,7 +294,6 @@ export default function Products() {
       if (productRes.data?.success) {
         const normalized = normalizeProduct(productRes.data.data);
         setSelectedProduct(normalized);
-        // Keep table row synchronized with latest product details
         setProducts((prev) =>
           prev.map((item) => (item.id === normalized.id ? normalized : item))
         );
@@ -325,9 +314,9 @@ export default function Products() {
     }
   };
 
-  // Increase or Decrease Stock (PATCH /api/products/{id}/increase-stock & decrease-stock)
+  // Increase or Decrease Stock
   const handleStockUpdate = async (action) => {
-    if (!selectedProduct) return;
+    if (!selectedProduct || stockActionLoading) return;
 
     const quantity = Number(stockQuantity);
     const unitLabel = selectedProduct.unit || "pcs";
@@ -373,7 +362,6 @@ export default function Products() {
           );
         }
 
-        // Refresh stock history after adjustment
         try {
           const historyRes = await api.get(
             `/api/products/${selectedProduct.id}/stock-history`
@@ -412,7 +400,7 @@ export default function Products() {
     }
   };
 
-  // Filtered products based on Search, Category Filter, Unit Filter, and Stock Status Filter
+  // Filtered products
   const filteredProducts = useMemo(() => {
     const query = search.toLowerCase().trim();
 
@@ -451,7 +439,6 @@ export default function Products() {
     lowStockThreshold,
   ]);
 
-  // Open Add Product Modal
   const openAddForm = () => {
     setEditingId(null);
     setForm(emptyForm);
@@ -459,7 +446,6 @@ export default function Products() {
     setShowForm(true);
   };
 
-  // Open Edit Product Modal
   const openEditForm = (product, event) => {
     if (event) event.stopPropagation();
 
@@ -483,9 +469,10 @@ export default function Products() {
     setShowForm(true);
   };
 
-  // Create or Update Product (POST /api/products & PUT /api/products)
+  // Create or Update Product with Loading Spinner
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (formSubmitting) return;
 
     const name = form.name.trim();
     const price = Number(form.price);
@@ -595,9 +582,9 @@ export default function Products() {
     }
   };
 
-  // Delete Product (DELETE /api/products/{id})
+  // Delete Product with Loading Spinner
   const confirmDeleteProduct = async () => {
-    if (!productToDelete) return;
+    if (!productToDelete || deleteLoading) return;
 
     try {
       setDeleteLoading(true);
@@ -669,7 +656,7 @@ export default function Products() {
             title="Refresh product list"
           >
             <RefreshCw size={15} className={loading ? "spin-icon" : ""} />
-            Refresh
+            {loading ? "Refreshing..." : "Refresh"}
           </button>
 
           <button
@@ -703,7 +690,7 @@ export default function Products() {
         </div>
       )}
 
-      {/* Summary Cards (Click to quick-filter) */}
+      {/* Summary Cards */}
       <div className="product-summary-grid">
         <article
           className={`product-summary-card clickable ${
@@ -841,7 +828,6 @@ export default function Products() {
               <ChevronDown size={15} />
             </label>
 
-            {/* Backend Low-Stock Endpoint Trigger (/api/products/low-stock?threshold=...) */}
             <div className="low-stock-api-bar">
               <Filter size={14} />
               <span>Threshold:</span>
@@ -892,7 +878,10 @@ export default function Products() {
               {loading ? (
                 <tr>
                   <td colSpan="7" className="products-empty">
-                    Loading products...
+                    <div className="table-loading-inline">
+                      <RefreshCw size={18} className="spin-icon" />
+                      <span>Loading products...</span>
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -1014,7 +1003,9 @@ export default function Products() {
         <div
           className="product-details-overlay"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setShowDetails(false);
+            if (event.target === event.currentTarget && !stockActionLoading) {
+              setShowDetails(false);
+            }
           }}
         >
           <div className="product-details-modal" role="dialog" aria-modal="true">
@@ -1026,6 +1017,7 @@ export default function Products() {
               <button
                 type="button"
                 className="modal-close"
+                disabled={stockActionLoading}
                 onClick={() => setShowDetails(false)}
                 aria-label="Close details"
               >
@@ -1034,7 +1026,10 @@ export default function Products() {
             </div>
 
             {detailsLoading ? (
-              <div className="details-loading">Loading product details...</div>
+              <div className="details-loading">
+                <RefreshCw size={18} className="spin-icon" />
+                <span>Loading product details...</span>
+              </div>
             ) : selectedProduct ? (
               <>
                 <div className="details-info-grid">
@@ -1076,9 +1071,7 @@ export default function Products() {
                 {/* Stock Increase / Decrease Section */}
                 <div className="stock-controls">
                   <div className="stock-controls-header">
-                    <h3>
-                      Manage Stock ({selectedProduct.unit || "pcs"})
-                    </h3>
+                    <h3>Manage Stock ({selectedProduct.unit || "pcs"})</h3>
                     <span
                       className={`product-status ${
                         getStockStatus(
@@ -1103,6 +1096,7 @@ export default function Products() {
                       <button
                         key={preset}
                         type="button"
+                        disabled={stockActionLoading}
                         className={`preset-pill ${
                           Number(stockQuantity) === preset ? "active" : ""
                         }`}
@@ -1119,6 +1113,7 @@ export default function Products() {
                       type="number"
                       min="1"
                       step="1"
+                      disabled={stockActionLoading}
                       value={stockQuantity}
                       onChange={(event) => setStockQuantity(event.target.value)}
                       placeholder={`Enter quantity in ${
@@ -1133,7 +1128,11 @@ export default function Products() {
                         disabled={stockActionLoading}
                         onClick={() => handleStockUpdate("increase")}
                       >
-                        <ArrowUpCircle size={16} />
+                        {stockActionLoading ? (
+                          <RefreshCw size={15} className="spin-icon" />
+                        ) : (
+                          <ArrowUpCircle size={16} />
+                        )}
                         {stockActionLoading ? "Updating..." : "Increase Stock"}
                       </button>
 
@@ -1145,7 +1144,11 @@ export default function Products() {
                         }
                         onClick={() => handleStockUpdate("decrease")}
                       >
-                        <ArrowDownCircle size={16} />
+                        {stockActionLoading ? (
+                          <RefreshCw size={15} className="spin-icon" />
+                        ) : (
+                          <ArrowDownCircle size={16} />
+                        )}
                         {stockActionLoading ? "Updating..." : "Decrease Stock"}
                       </button>
                     </div>
@@ -1235,7 +1238,9 @@ export default function Products() {
         <div
           className="product-modal-backdrop"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setShowForm(false);
+            if (event.target === event.currentTarget && !formSubmitting) {
+              setShowForm(false);
+            }
           }}
         >
           <section
@@ -1260,6 +1265,7 @@ export default function Products() {
                 className="modal-close"
                 type="button"
                 aria-label="Close form"
+                disabled={formSubmitting}
                 onClick={() => setShowForm(false)}
               >
                 <X size={19} />
@@ -1271,6 +1277,7 @@ export default function Products() {
                 <label className="full-width-field">
                   Product Name
                   <input
+                    disabled={formSubmitting}
                     value={form.name}
                     onChange={(event) =>
                       setForm({ ...form, name: event.target.value })
@@ -1283,6 +1290,7 @@ export default function Products() {
                 <label>
                   Category
                   <select
+                    disabled={formSubmitting}
                     value={form.category}
                     onChange={(event) =>
                       setForm({
@@ -1304,6 +1312,7 @@ export default function Products() {
                 <label>
                   Unit Type (Measurement)
                   <select
+                    disabled={formSubmitting}
                     value={form.unit}
                     onChange={(event) =>
                       setForm({
@@ -1324,6 +1333,7 @@ export default function Products() {
                 <label>
                   Price per {formatUnitLabel(form.unit)} (₹)
                   <input
+                    disabled={formSubmitting}
                     type="number"
                     min="0.01"
                     step="0.01"
@@ -1339,6 +1349,7 @@ export default function Products() {
                 <label>
                   Initial / Current Quantity ({formatUnitLabel(form.unit)})
                   <input
+                    disabled={formSubmitting}
                     type="number"
                     min="0"
                     step="1"
@@ -1372,11 +1383,18 @@ export default function Products() {
                   className="primary-button"
                   disabled={formSubmitting}
                 >
-                  {formSubmitting
-                    ? "Saving..."
-                    : editingId !== null
-                    ? "Save Changes"
-                    : "Add Product"}
+                  {formSubmitting ? (
+                    <>
+                      <RefreshCw size={15} className="spin-icon" />
+                      {editingId !== null
+                        ? "Saving Changes..."
+                        : "Creating Product..."}
+                    </>
+                  ) : editingId !== null ? (
+                    "Save Changes"
+                  ) : (
+                    "Add Product"
+                  )}
                 </button>
               </div>
             </form>
@@ -1384,12 +1402,14 @@ export default function Products() {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Confirmation Modal with Loading State */}
       {productToDelete && (
         <div
           className="product-modal-backdrop"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setProductToDelete(null);
+            if (event.target === event.currentTarget && !deleteLoading) {
+              setProductToDelete(null);
+            }
           }}
         >
           <section
@@ -1405,6 +1425,7 @@ export default function Products() {
               <button
                 className="modal-close"
                 type="button"
+                disabled={deleteLoading}
                 onClick={() => setProductToDelete(null)}
               >
                 <X size={18} />
@@ -1431,7 +1452,14 @@ export default function Products() {
                 onClick={confirmDeleteProduct}
                 disabled={deleteLoading}
               >
-                {deleteLoading ? "Deleting..." : "Delete Product"}
+                {deleteLoading ? (
+                  <>
+                    <RefreshCw size={15} className="spin-icon" />
+                    Deleting...
+                  </>
+                ) : (
+                  "Delete Product"
+                )}
               </button>
             </div>
           </section>

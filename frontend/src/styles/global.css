@@ -9,6 +9,8 @@ body {
   margin: 0;
   padding: 0;
   width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
   overflow-x: hidden;
   font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     sans-serif;
@@ -16,27 +18,50 @@ body {
   color: #1e293b;
 }
 
-/* MainLayout Wrapper Responsiveness */
+/* MainLayout Wrapper Responsiveness:
+   Ensure outer layout never clips top headings or bottom rows on mobile browsers */
+#root,
 .app-layout,
 .main-layout {
   display: flex;
   min-height: 100vh;
+  min-height: 100dvh;
   width: 100%;
   overflow-x: hidden;
 }
 
 .main-content,
 .content-area,
+.layout-right,
 main {
   flex: 1;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   max-width: 100%;
   overflow-x: hidden;
 }
 
+/* Page wrapper inside main layout */
+.page-content,
+.dashboard,
+.products-page,
+.categories-page,
+.customers-page,
+.billing-page,
+.payments-page,
+.refunds-page,
+.stock-history-page {
+  width: 100%;
+  padding-top: 16px;
+  padding-bottom: calc(64px + env(safe-area-inset-bottom, 20px));
+}
+
 /* Ensure all table wrappers scroll smoothly on small screens */
 .table-wrapper,
+.products-table-scroll,
 .products-table-wrap,
+.categories-table-scroll,
 .categories-table-wrap,
 .customers-table-wrap,
 .billing-table-wrapper,
@@ -54,7 +79,9 @@ main {
   .stats-grid,
   .payments-stats,
   .refunds-stats,
+  .product-summary-grid,
   .products-stats,
+  .category-summary-grid,
   .categories-stats,
   .billing-stats,
   .stock-stats {
@@ -71,10 +98,21 @@ main {
   }
 }
 
-/* Mobile & Tablet Navbar: Hide Profile & Logout so Navbar stays on 1 clean line */
+/* Mobile & Tablet Layout Fix (<= 1024px):
+   - Prevents any fixed/100vh parent container from clipping top page title or bottom items
+   - Adds generous bottom clearance above the mobile browser / Android navigation bar */
 @media (max-width: 1024px) {
   .top-navbar-right {
     display: none !important;
+  }
+
+  .app-layout,
+  .main-layout,
+  .main-content,
+  .content-area {
+    height: auto !important;
+    min-height: 100dvh !important;
+    overflow-y: visible !important;
   }
 }
 
@@ -90,8 +128,10 @@ main {
   .payments-page,
   .refunds-page,
   .stock-history-page {
-    padding-left: 12px !important;
-    padding-right: 12px !important;
+    padding-top: 20px !important;
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+    padding-bottom: calc(92px + env(safe-area-inset-bottom, 24px)) !important;
   }
 
   /* Page Headings Stack Cleanly */
@@ -106,6 +146,7 @@ main {
     flex-direction: column !important;
     align-items: stretch !important;
     gap: 12px !important;
+    margin-top: 4px !important;
   }
 
   .dashboard-heading-controls,
@@ -139,7 +180,9 @@ main {
   .payments-search,
   .refunds-search,
   .customers-search,
+  .product-search,
   .products-search,
+  .category-search,
   .categories-search,
   .billing-search-form,
   .billing-search-box,
@@ -157,7 +200,9 @@ main {
   .stats-grid,
   .payments-stats,
   .refunds-stats,
+  .product-summary-grid,
   .products-stats,
+  .category-summary-grid,
   .categories-stats,
   .billing-stats,
   .stock-stats,
@@ -167,11 +212,12 @@ main {
     gap: 12px !important;
   }
 
-  /* Modals fit mobile screens with comfortable padding */
+  /* Modals fit mobile screens safely between top status bar and bottom options bar */
   .payment-modal,
   .refund-modal,
   .customer-modal,
   .product-modal,
+  .product-details-modal,
   .category-modal,
   .billing-details-modal,
   .bill-modal,
@@ -180,7 +226,7 @@ main {
     width: 100% !important;
     max-width: calc(100vw - 24px) !important;
     padding: 18px !important;
-    max-height: 90vh;
+    max-height: calc(100dvh - 48px) !important;
     overflow-y: auto;
   }
 

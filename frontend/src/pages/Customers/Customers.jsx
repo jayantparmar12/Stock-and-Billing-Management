@@ -40,12 +40,17 @@ export default function Customers() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
 
-  // Add / Edit Modal
+  // Add / Edit Modal + Loading State
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // Delete Confirmation Modal + Loading State
+  const [customerToDelete, setCustomerToDelete] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   // Customer Details & Bills History Modal (GET /api/bill/customer_id/{id})
   const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -124,8 +129,11 @@ export default function Customers() {
     }
   };
 
+  // Create or Update Customer with Loading State
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (submitting) return;
+
     const name = form.name.trim();
     const phone = form.phone.trim();
 
@@ -151,6 +159,12 @@ export default function Customers() {
             prev.map((c) => (c.id === editingId ? response.data.data : c))
           );
           setShowForm(false);
+          setForm(emptyForm);
+          setEditingId(null);
+        } else {
+          setFormError(
+            response.data?.message || "Unable to update customer."
+          );
         }
       } else {
         const response = await api.post("/api/customers", {
@@ -162,6 +176,11 @@ export default function Customers() {
         if (response.data?.success) {
           setCustomers((prev) => [...prev, response.data.data]);
           setShowForm(false);
+          setForm(emptyForm);
+        } else {
+          setFormError(
+            response.data?.message || "Unable to create customer."
+          );
         }
       }
     } catch (err) {
@@ -173,18 +192,44 @@ export default function Customers() {
     }
   };
 
-  const handleDelete = async (customer, event) => {
+  const openDeleteModal = (customer, event) => {
     if (event) event.stopPropagation();
+    setDeleteError("");
+    setCustomerToDelete(customer);
+  };
+
+  // Delete Customer with Loading State
+  const confirmDeleteCustomer = async () => {
+    if (!customerToDelete || deleteLoading) return;
+
     try {
-      const response = await api.delete(`/api/customers/${customer.id}`);
+      setDeleteLoading(true);
+      setDeleteError("");
+      setError("");
+
+      const response = await api.delete(
+        `/api/customers/${customerToDelete.id}`
+      );
       if (response.data?.success) {
-        setCustomers((prev) => prev.filter((c) => c.id !== customer.id));
+        setCustomers((prev) =>
+          prev.filter((c) => c.id !== customerToDelete.id)
+        );
+        if (selectedCustomer?.id === customerToDelete.id) {
+          setSelectedCustomer(null);
+        }
+        setCustomerToDelete(null);
+      } else {
+        setDeleteError(
+          response.data?.message || "Unable to delete customer."
+        );
       }
     } catch (err) {
-      setError(
+      setDeleteError(
         err.response?.data?.message ||
           "Cannot delete customer with existing bills."
       );
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -193,7 +238,7 @@ export default function Customers() {
       <div className="customers-heading">
         <div>
           <h1>Customers</h1>
-          <p>Manage your shop's customers and view their purchase history.</p>
+          <p>Manage your shop&apos;s customers and view their purchase history.</p>
         </div>
 
         <div className="customers-heading-actions">
@@ -204,7 +249,7 @@ export default function Customers() {
             disabled={loading}
           >
             <RefreshCw size={15} className={loading ? "spin-icon" : ""} />
-            Refresh
+            {loading ? "Refreshing..." : "Refresh"}
           </button>
 
           <button
@@ -219,21 +264,11 @@ export default function Customers() {
       </div>
 
       {error && (
-        <div className="error-message" role="alert">
-          <div className="error-message-content">
-            <AlertTriangle size={18} />
-            <div>
-              <strong>Action failed</strong>
-              <p>{error}</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            className="error-dismiss-btn"
-            onClick={() => setError("")}
-            aria-label="Dismiss error"
-          >
-            <X size={16} />
+        <div className="customers-error" role="alert">
+          <AlertTriangle size={17} />
+          <span>{error}</span>
+          <button type="button" onClick={() => setError("")}>
+            Dismiss
           </button>
         </div>
       )}
@@ -272,7 +307,10 @@ export default function Customers() {
               {loading ? (
                 <tr>
                   <td colSpan="6" className="customers-empty">
-                    Loading customers...
+                    <div className="table-loading-inline">
+                      <RefreshCw size={18} className="spin-icon" />
+                      <span>Loading customers...</span>
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -328,7 +366,7 @@ export default function Customers() {
                           type="button"
                           className="action-button delete"
                           title="Delete customer"
-                          onClick={(e) => handleDelete(customer, e)}
+                          onClick={(e) => openDeleteModal(customer, e)}
                         >
                           <Trash2 size={16} />
                         </button>
@@ -341,7 +379,8 @@ export default function Customers() {
               {!loading && filteredCustomers.length === 0 && (
                 <tr>
                   <td colSpan="6" className="customers-empty">
-                    No customers found. Click "Add Customer" to create one.
+                    No customers found. Click &ldquo;Add Customer&rdquo; to
+                    create one.
                   </td>
                 </tr>
               )}
@@ -354,7 +393,9 @@ export default function Customers() {
       {showForm && (
         <div
           className="customer-modal-backdrop"
-          onClick={() => setShowForm(false)}
+          onClick={() => {
+            if (!submitting) setShowForm(false);
+          }}
         >
           <div
             className="customer-modal"
@@ -362,7 +403,11 @@ export default function Customers() {
           >
             <div className="customer-modal-header">
               <h2>{editingId ? "Edit Customer" : "Add Customer"}</h2>
-              <button type="button" onClick={() => setShowForm(false)}>
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={() => setShowForm(false)}
+              >
                 <X size={18} />
               </button>
             </div>
@@ -371,6 +416,7 @@ export default function Customers() {
               <label>
                 Customer Name *
                 <input
+                  disabled={submitting}
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   placeholder="e.g. Rahul Sharma"
@@ -381,9 +427,10 @@ export default function Customers() {
               <label>
                 Phone Number *
                 <input
+                  disabled={submitting}
                   value={form.phone}
                   onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  placeholder="e.g. xxxxxxxxxx"
+                  placeholder="e.g. 9876543210"
                   required
                 />
               </label>
@@ -391,6 +438,7 @@ export default function Customers() {
               <label>
                 Email Address
                 <input
+                  disabled={submitting}
                   type="email"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
@@ -400,12 +448,14 @@ export default function Customers() {
 
               <label>
                 Address
-                <input
+                <textarea
+                  disabled={submitting}
+                  rows={3}
                   value={form.address}
                   onChange={(e) =>
                     setForm({ ...form, address: e.target.value })
                   }
-                  placeholder="City / Street address"
+                  placeholder="City, Street, Landmark..."
                 />
               </label>
 
@@ -415,6 +465,7 @@ export default function Customers() {
                 <button
                   type="button"
                   className="secondary-button"
+                  disabled={submitting}
                   onClick={() => setShowForm(false)}
                 >
                   Cancel
@@ -424,10 +475,80 @@ export default function Customers() {
                   className="primary-button"
                   disabled={submitting}
                 >
-                  {submitting ? "Saving..." : "Save Customer"}
+                  {submitting ? (
+                    <>
+                      <RefreshCw size={15} className="spin-icon" />
+                      {editingId ? "Saving Changes..." : "Creating Customer..."}
+                    </>
+                  ) : editingId ? (
+                    "Save Changes"
+                  ) : (
+                    "Add Customer"
+                  )}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Customer Confirmation Modal with Loading State */}
+      {customerToDelete && (
+        <div
+          className="customer-modal-backdrop"
+          onClick={() => {
+            if (!deleteLoading) setCustomerToDelete(null);
+          }}
+        >
+          <div
+            className="customer-modal delete-confirm-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="customer-modal-header">
+              <h2>Delete Customer</h2>
+              <button
+                type="button"
+                disabled={deleteLoading}
+                onClick={() => setCustomerToDelete(null)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="delete-confirm-text">
+              Are you sure you want to delete{" "}
+              <strong>{customerToDelete.name}</strong> (#{customerToDelete.id})?
+            </p>
+
+            {deleteError && (
+              <p className="customer-form-error">{deleteError}</p>
+            )}
+
+            <div className="customer-form-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={deleteLoading}
+                onClick={() => setCustomerToDelete(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="danger-button"
+                disabled={deleteLoading}
+                onClick={confirmDeleteCustomer}
+              >
+                {deleteLoading ? (
+                  <>
+                    <RefreshCw size={15} className="spin-icon" />
+                    Deleting...
+                  </>
+                ) : (
+                  "Delete Customer"
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -439,40 +560,85 @@ export default function Customers() {
           onClick={() => setSelectedCustomer(null)}
         >
           <div
-            className="customer-modal"
+            className="customer-modal history-modal"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="customer-modal-header">
               <div>
                 <h2>{selectedCustomer.name}</h2>
-                <p>Phone: {selectedCustomer.phone}</p>
+                <p className="customer-sub">
+                  {selectedCustomer.phone} •{" "}
+                  {selectedCustomer.email || "No email"}
+                </p>
               </div>
-              <button type="button" onClick={() => setSelectedCustomer(null)}>
+              <button
+                type="button"
+                onClick={() => setSelectedCustomer(null)}
+              >
                 <X size={18} />
               </button>
             </div>
 
-            <h4 className="customer-bills-title">
-              <ReceiptText size={15} /> Bills History ({customerBills.length})
+            <h4 className="history-heading">
+              <ReceiptText size={16} /> Bills History ({customerBills.length})
             </h4>
 
             {billsLoading ? (
-              <p className="customers-empty">Loading bills...</p>
+              <div className="customers-empty">
+                <div className="table-loading-inline">
+                  <RefreshCw size={18} className="spin-icon" />
+                  <span>Loading customer bills...</span>
+                </div>
+              </div>
             ) : customerBills.length === 0 ? (
               <p className="customers-empty">
                 No bills created for this customer yet.
               </p>
             ) : (
-              <ul className="customer-bills-list">
-                {customerBills.map((b) => (
-                  <li key={b.id}>
-                    <span>
-                      Bill #{b.id} ({b.items?.length || 0} items)
-                    </span>
-                    <strong>{formatCurrency(b.totalAmount)}</strong>
-                  </li>
-                ))}
-              </ul>
+              <div className="history-table-wrap">
+                <table className="customers-table">
+                  <thead>
+                    <tr>
+                      <th>BILL ID</th>
+                      <th>DATE</th>
+                      <th>TOTAL</th>
+                      <th>PAID</th>
+                      <th>STATUS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {customerBills.map((bill) => (
+                      <tr key={bill.id}>
+                        <td>
+                          <strong>
+                            BILL-{String(bill.id).padStart(4, "0")}
+                          </strong>
+                        </td>
+                        <td>
+                          {bill.billDate
+                            ? new Date(bill.billDate).toLocaleDateString(
+                                "en-IN"
+                              )
+                            : "—"}
+                        </td>
+                        <td>{formatCurrency(bill.totalAmount)}</td>
+                        <td>{formatCurrency(bill.paidAmount)}</td>
+                        <td>
+                          <span
+                            className={`status-pill ${(
+                              bill.paymentStatus || "UNPAID"
+                            ).toLowerCase()}`}
+                          >
+                            {bill.status === "CANCELLED"
+                              ? "CANCELLED"
+                              : bill.paymentStatus || "UNPAID"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </div>

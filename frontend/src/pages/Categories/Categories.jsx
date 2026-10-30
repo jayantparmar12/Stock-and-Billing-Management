@@ -13,6 +13,7 @@ import {
   IndianRupee,
   Layers,
   ChevronRight,
+  AlertTriangle,
 } from "lucide-react";
 import "./Categories.css";
 import api from "../../services/api";
@@ -21,6 +22,16 @@ const emptyForm = {
   name: "",
   description: "",
 };
+
+const UNIT_STORAGE_KEY = "inventory_product_units";
+
+function getStoredUnitsMap() {
+  try {
+    return JSON.parse(localStorage.getItem(UNIT_STORAGE_KEY) || "{}") || {};
+  } catch {
+    return {};
+  }
+}
 
 function formatCurrency(value) {
   const num = Number(value);
@@ -43,6 +54,13 @@ function normalizeProduct(raw, fallbackCategory = null) {
       ? raw.category.id ?? null
       : raw.categoryId ?? fallbackCategory?.id ?? null;
 
+  const storedUnits = getStoredUnitsMap();
+  const unit =
+    raw.unit ??
+    raw.unitType ??
+    storedUnits[String(raw.id)] ??
+    "pcs";
+
   return {
     id: raw.id,
     name: raw.name ?? raw.product ?? "Product",
@@ -50,6 +68,7 @@ function normalizeProduct(raw, fallbackCategory = null) {
     categoryId,
     price: Number(raw.price ?? 0),
     quantity: Number(raw.quantity ?? raw.stock ?? 0),
+    unit: String(unit || "pcs").toLowerCase(),
   };
 }
 
@@ -59,13 +78,19 @@ export default function Categories() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [error, setError] = useState("");
 
-  // Add / Edit Category Modal State
+  // Add / Edit Category Modal State + Loading State
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState("");
-  const [error, setError] = useState("");
+  const [formSubmitting, setFormSubmitting] = useState(false);
+
+  // Delete Confirmation Modal State + Loading State
+  const [categoryToDelete, setCategoryToDelete] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   // Selected Category Details & Products Modal State
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -221,15 +246,17 @@ export default function Categories() {
     if (event) event.stopPropagation();
     setEditingId(category.id);
     setForm({
-      name: category.name,
-      description: category.description,
+      name: category.name ?? "",
+      description: category.description ?? "",
     });
     setFormError("");
     setShowForm(true);
   };
 
+  // Create or Edit Category with proper Loading State
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (formSubmitting) return;
 
     const name = form.name.trim();
     const description = form.description.trim();
@@ -246,7 +273,7 @@ export default function Categories() {
 
     const duplicate = categories.some(
       (category) =>
-        category.name.toLowerCase() === name.toLowerCase() &&
+        (category.name ?? "").toLowerCase() === name.toLowerCase() &&
         category.id !== editingId
     );
 
@@ -255,72 +282,101 @@ export default function Categories() {
       return;
     }
 
-    if (editingId !== null) {
-      try {
+    try {
+      setFormSubmitting(true);
+      setFormError("");
+      setError("");
+
+      if (editingId !== null) {
         const data = {
           id: editingId,
           name,
           description,
         };
         const response = await api.put("/api/categories", data);
-        if (response.data.success) {
+        if (response.data?.success) {
           await fetchCategoriesAndProducts();
+          setShowForm(false);
+          setForm(emptyForm);
+          setEditingId(null);
         } else {
-          setError(response.data.message);
+          setFormError(response.data?.message || "Unable to update category.");
         }
-      } catch (err) {
-        setError(err.response?.data?.message || "Unable to update category");
-      }
-    } else {
-      try {
+      } else {
         const data = {
           name,
           description,
         };
         const response = await api.post("/api/categories", data);
-        if (response.data.success) {
+        if (response.data?.success) {
           setCategories((prev) => [
             ...prev,
             { productsVariety: 0, ...response.data.data },
           ]);
+          setShowForm(false);
+          setForm(emptyForm);
+          setEditingId(null);
         } else {
-          setError(response.data.message);
+          setFormError(response.data?.message || "Unable to add category.");
         }
-      } catch (err) {
-        setError(err.response?.data?.message || "Unable to add category");
       }
+    } catch (err) {
+      setFormError(
+        err.response?.data?.message ||
+          (editingId !== null
+            ? "Unable to update category."
+            : "Unable to create category.")
+      );
+    } finally {
+      setFormSubmitting(false);
     }
-
-    setShowForm(false);
-    setForm(emptyForm);
-    setEditingId(null);
-    setFormError("");
   };
 
-  const handleDelete = async (category, event) => {
+  // Open Delete Confirmation Modal
+  const openDeleteModal = (category, event) => {
     if (event) event.stopPropagation();
+    setDeleteError("");
+    setCategoryToDelete(category);
+  };
 
-    if ((category.productsVariety ?? 0) > 0) {
-      window.alert(
-        "This category has products assigned to it. Remove those products from the category before deleting it."
+  // Confirm Delete Category with proper Loading State
+  const confirmDeleteCategory = async () => {
+    if (!categoryToDelete || deleteLoading) return;
+
+    if ((categoryToDelete.productsVariety ?? 0) > 0) {
+      setDeleteError(
+        `This category contains ${categoryToDelete.productsVariety} product(s). Please move or delete those products before deleting this category.`
       );
       return;
     }
 
-    const confirmed = window.confirm(`Delete category "${category.name}"?`);
-    if (!confirmed) return;
-
     try {
-      const response = await api.delete(`/api/categories/${category.id}`);
-      if (response.data.success) {
+      setDeleteLoading(true);
+      setDeleteError("");
+      setError("");
+
+      const response = await api.delete(
+        `/api/categories/${categoryToDelete.id}`
+      );
+      if (response.data?.success) {
         setCategories((current) =>
-          current.filter((item) => item.id !== category.id)
+          current.filter((item) => item.id !== categoryToDelete.id)
         );
+        if (selectedCategory?.id === categoryToDelete.id) {
+          setSelectedCategory(null);
+        }
+        setCategoryToDelete(null);
       } else {
-        setError(response.data.message);
+        setDeleteError(
+          response.data?.message || "Unable to delete category."
+        );
       }
     } catch (err) {
-      setError(err.response?.data?.message || "Unable to delete category");
+      setDeleteError(
+        err.response?.data?.message || "Unable to delete category."
+      );
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -329,7 +385,6 @@ export default function Categories() {
       <div className="categories-heading">
         <div>
           <h1>Categories</h1>
-          {error && <p className="category-form-error">{error}</p>}
           <p>
             Organize your products into manageable groups. Click anywhere on a
             category row to view its products.
@@ -344,15 +399,36 @@ export default function Categories() {
             disabled={loading}
           >
             <RefreshCw size={15} className={loading ? "spin-icon" : ""} />
-            Refresh
+            {loading ? "Refreshing..." : "Refresh"}
           </button>
 
-          <button className="primary-button" onClick={openAddForm}>
+          <button
+            type="button"
+            className="primary-button"
+            onClick={openAddForm}
+          >
             <Plus size={17} />
             Add Category
           </button>
         </div>
       </div>
+
+      {error && (
+        <div className="category-error-banner" role="alert">
+          <div className="category-error-content">
+            <AlertTriangle size={18} />
+            <span>{error}</span>
+          </div>
+          <button
+            type="button"
+            className="category-error-dismiss"
+            onClick={() => setError("")}
+            aria-label="Dismiss error"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       <section className="category-summary-grid">
         <article className="category-summary-card">
@@ -431,91 +507,107 @@ export default function Categories() {
             </thead>
 
             <tbody>
-              {filteredCategories.map((category) => (
-                <tr
-                  key={category.id}
-                  className="category-row"
-                  style={{ cursor: "pointer" }}
-                  onClick={() => openCategoryDetails(category)}
-                  title={`Click to view all products in ${category.name}`}
-                >
-                  <td>
-                    <div className="category-name-cell">
-                      <div className="category-row-icon">
-                        <Tags size={18} />
-                      </div>
-                      <div className="category-name-text-wrap">
-                        <strong className="category-name-text">
-                          {category.name}
-                        </strong>
-                        <span className="category-row-hint">
-                          Click to view products <ChevronRight size={12} />
-                        </span>
-                      </div>
-                    </div>
-                  </td>
-
-                  <td className="category-description">
-                    {category.description || "No description"}
-                  </td>
-
-                  <td>
-                    <span className="category-product-count">
-                      {category.productsVariety ?? 0} products variety
-                    </span>
-                  </td>
-
-                  <td>
-                    <span
-                      className={`category-status ${
-                        (category.productsVariety ?? 0) > 0 ? "active" : "empty"
-                      }`}
-                    >
-                      <span className="category-status-dot" />
-                      {(category.productsVariety ?? 0) > 0 ? "Active" : "Empty"}
-                    </span>
-                  </td>
-
-                  <td onClick={(e) => e.stopPropagation()}>
-                    <div className="category-actions">
-                      <button
-                        type="button"
-                        className="action-button view"
-                        title="View products in this category"
-                        aria-label={`View products in ${category.name}`}
-                        onClick={() => openCategoryDetails(category)}
-                      >
-                        <Eye size={16} />
-                      </button>
-
-                      <button
-                        type="button"
-                        className="action-button edit"
-                        title="Edit category"
-                        aria-label={`Edit ${category.name}`}
-                        onClick={(e) => openEditForm(category, e)}
-                      >
-                        <Pencil size={16} />
-                      </button>
-
-                      <button
-                        type="button"
-                        className="action-button delete"
-                        title="Delete category"
-                        aria-label={`Delete ${category.name}`}
-                        onClick={(e) => handleDelete(category, e)}
-                      >
-                        <Trash2 size={16} />
-                      </button>
+              {loading ? (
+                <tr>
+                  <td colSpan="5" className="categories-empty">
+                    <div className="table-loading-inline">
+                      <RefreshCw size={18} className="spin-icon" />
+                      <span>Loading categories...</span>
                     </div>
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredCategories.map((category) => (
+                  <tr
+                    key={category.id}
+                    className="category-row"
+                    style={{ cursor: "pointer" }}
+                    onClick={() => openCategoryDetails(category)}
+                    title={`Click to view all products in ${category.name}`}
+                  >
+                    <td>
+                      <div className="category-name-cell">
+                        <div className="category-row-icon">
+                          <Tags size={18} />
+                        </div>
+                        <div className="category-name-text-wrap">
+                          <strong className="category-name-text">
+                            {category.name}
+                          </strong>
+                          <span className="category-row-hint">
+                            Click to view products <ChevronRight size={12} />
+                          </span>
+                        </div>
+                      </div>
+                    </td>
 
-              {filteredCategories.length === 0 && (
+                    <td className="category-description">
+                      {category.description || "No description"}
+                    </td>
+
+                    <td>
+                      <span className="category-product-count">
+                        {category.productsVariety ?? 0} products variety
+                      </span>
+                    </td>
+
+                    <td>
+                      <span
+                        className={`category-status ${
+                          (category.productsVariety ?? 0) > 0
+                            ? "active"
+                            : "empty"
+                        }`}
+                      >
+                        <span className="category-status-dot" />
+                        {(category.productsVariety ?? 0) > 0
+                          ? "Active"
+                          : "Empty"}
+                      </span>
+                    </td>
+
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <div className="category-actions">
+                        <button
+                          type="button"
+                          className="action-button view"
+                          title="View products in this category"
+                          aria-label={`View products in ${category.name}`}
+                          onClick={() => openCategoryDetails(category)}
+                        >
+                          <Eye size={16} />
+                        </button>
+
+                        <button
+                          type="button"
+                          className="action-button edit"
+                          title="Edit category"
+                          aria-label={`Edit ${category.name}`}
+                          onClick={(e) => openEditForm(category, e)}
+                        >
+                          <Pencil size={16} />
+                        </button>
+
+                        <button
+                          type="button"
+                          className="action-button delete"
+                          title="Delete category"
+                          aria-label={`Delete ${category.name}`}
+                          onClick={(e) => openDeleteModal(category, e)}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+
+              {!loading && filteredCategories.length === 0 && (
                 <tr>
                   <td colSpan="5" className="categories-empty">
-                    No categories found. Try another search.
+                    No categories found. Try another search or click &ldquo;Add
+                    Category&rdquo;.
                   </td>
                 </tr>
               )}
@@ -614,9 +706,7 @@ export default function Categories() {
             <div className="category-products-section">
               <div className="category-products-header">
                 <div>
-                  <h3>
-                    Products in &ldquo;{selectedCategory.name}&rdquo;
-                  </h3>
+                  <h3>Products in &ldquo;{selectedCategory.name}&rdquo;</h3>
                   <span>
                     Showing {displayedCategoryProducts.length} of{" "}
                     {categoryModalProducts.length} items
@@ -638,7 +728,10 @@ export default function Categories() {
 
               {categoryProductsLoading && categoryModalProducts.length === 0 ? (
                 <div className="details-loading">
-                  Loading products for {selectedCategory.name}...
+                  <RefreshCw size={18} className="spin-icon" />
+                  <span>
+                    Loading products for {selectedCategory.name}...
+                  </span>
                 </div>
               ) : displayedCategoryProducts.length === 0 ? (
                 <div className="empty-assigned-products">
@@ -687,6 +780,7 @@ export default function Categories() {
                           Number(prod.price || 0) * Number(prod.quantity || 0);
                         const isOut = prod.quantity <= 0;
                         const isLow = prod.quantity > 0 && prod.quantity < 11;
+                        const unitLabel = prod.unit || "pcs";
 
                         return (
                           <tr key={prod.id}>
@@ -707,12 +801,12 @@ export default function Categories() {
                             </td>
 
                             <td className="assigned-product-price">
-                              {formatCurrency(prod.price)}
+                              {formatCurrency(prod.price)} / {unitLabel}
                             </td>
 
                             <td>
                               <span className="assigned-product-qty">
-                                <strong>{prod.quantity}</strong> units
+                                <strong>{prod.quantity}</strong> {unitLabel}
                               </span>
                             </td>
 
@@ -764,7 +858,9 @@ export default function Categories() {
       {showForm && (
         <div
           className="category-modal-backdrop"
-          onClick={() => setShowForm(false)}
+          onClick={() => {
+            if (!formSubmitting) setShowForm(false);
+          }}
         >
           <section
             className="category-modal"
@@ -789,6 +885,7 @@ export default function Categories() {
                 type="button"
                 className="modal-close"
                 aria-label="Close form"
+                disabled={formSubmitting}
                 onClick={() => setShowForm(false)}
               >
                 <X size={19} />
@@ -801,6 +898,7 @@ export default function Categories() {
                   Category Name
                   <input
                     autoFocus
+                    disabled={formSubmitting}
                     value={form.name}
                     onChange={(event) =>
                       setForm({ ...form, name: event.target.value })
@@ -814,6 +912,7 @@ export default function Categories() {
                 <label>
                   Description
                   <textarea
+                    disabled={formSubmitting}
                     value={form.description}
                     onChange={(event) =>
                       setForm({
@@ -839,16 +938,101 @@ export default function Categories() {
                 <button
                   type="button"
                   className="secondary-button"
+                  disabled={formSubmitting}
                   onClick={() => setShowForm(false)}
                 >
                   Cancel
                 </button>
 
-                <button type="submit" className="primary-button">
-                  {editingId !== null ? "Save Changes" : "Create Category"}
+                <button
+                  type="submit"
+                  className="primary-button"
+                  disabled={formSubmitting}
+                >
+                  {formSubmitting ? (
+                    <>
+                      <RefreshCw size={15} className="spin-icon" />
+                      {editingId !== null
+                        ? "Saving Changes..."
+                        : "Creating Category..."}
+                    </>
+                  ) : editingId !== null ? (
+                    "Save Changes"
+                  ) : (
+                    "Create Category"
+                  )}
                 </button>
               </div>
             </form>
+          </section>
+        </div>
+      )}
+
+      {/* Delete Category Confirmation Modal with Loading State */}
+      {categoryToDelete && (
+        <div
+          className="category-modal-backdrop"
+          onClick={() => {
+            if (!deleteLoading) setCategoryToDelete(null);
+          }}
+        >
+          <section
+            className="category-modal delete-confirm-modal"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="category-modal-heading">
+              <div>
+                <h2>Delete Category</h2>
+                <p>This action cannot be undone.</p>
+              </div>
+              <button
+                type="button"
+                className="modal-close"
+                disabled={deleteLoading}
+                onClick={() => setCategoryToDelete(null)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="delete-confirm-text">
+              Are you sure you want to delete{" "}
+              <strong>{categoryToDelete.name}</strong> (#{categoryToDelete.id})?
+            </p>
+
+            {deleteError && (
+              <p className="category-form-error" role="alert">
+                {deleteError}
+              </p>
+            )}
+
+            <div className="category-form-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={deleteLoading}
+                onClick={() => setCategoryToDelete(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="danger-button"
+                disabled={deleteLoading}
+                onClick={confirmDeleteCategory}
+              >
+                {deleteLoading ? (
+                  <>
+                    <RefreshCw size={15} className="spin-icon" />
+                    Deleting...
+                  </>
+                ) : (
+                  "Delete Category"
+                )}
+              </button>
+            </div>
           </section>
         </div>
       )}
