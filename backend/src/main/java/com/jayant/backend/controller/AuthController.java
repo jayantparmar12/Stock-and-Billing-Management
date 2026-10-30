@@ -4,6 +4,7 @@ import com.jayant.backend.DTO.ApiResponse;
 import com.jayant.backend.DTO.AuthResponse;
 import com.jayant.backend.DTO.LoginRequest;
 import com.jayant.backend.DTO.RegisterRequest;
+import com.jayant.backend.repository.ShopRepo;
 import com.jayant.backend.services.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService authService;
+    private final ShopRepo shopRepo;
 
     @PostMapping("/register")
     public ApiResponse<AuthResponse> register(@Valid @RequestBody RegisterRequest request) {
@@ -28,6 +30,7 @@ public class AuthController {
 
     @GetMapping("/ping")
     public String ping() {
-        return "OK";
+        long count = shopRepo.count();
+        return "OK" + count;
     }
 }
