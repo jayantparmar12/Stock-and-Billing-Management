@@ -18,9 +18,29 @@ body {
   color: #1e293b;
 }
 
+/* Root must be block/100% width so full-page screens like Login/Register (.auth-page) span 100% width and stay centered */
+#root {
+  display: block;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* Auth Page (Login / Register) Full-Width Centering & Mobile Safe Area */
+.auth-page {
+  width: 100% !important;
+  flex: 1 1 100% !important;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(20px, env(safe-area-inset-top, 20px)) 16px
+    max(28px, env(safe-area-inset-bottom, 28px));
+}
+
 /* MainLayout Wrapper Responsiveness:
    Ensure outer layout never clips top headings or bottom rows on mobile browsers */
-#root,
 .app-layout,
 .main-layout {
   display: flex;

@@ -1,9 +1,12 @@
 .auth-page {
+  width: 100%;
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: max(20px, env(safe-area-inset-top, 20px)) 16px
+    max(28px, env(safe-area-inset-bottom, 28px));
   background: linear-gradient(135deg, #eef2ff 0%, #f8fafc 100%);
 }
 
