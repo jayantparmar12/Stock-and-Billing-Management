@@ -2,6 +2,8 @@
   max-width: 1600px;
   margin: 0 auto;
   color: #202938;
+  padding-top: 8px;
+  padding-bottom: calc(64px + env(safe-area-inset-bottom, 20px));
 }
 
 .billing-heading {
@@ -702,16 +704,16 @@
   align-items: center;
   gap: 6px;
   padding: 6px 11px;
-  border: 1px solid #c8fdf2;
+  border: 1px solid #dce5ff;
   border-radius: 7px;
   background: #f5f7ff;
-   color: #0f766e;
+  color: #3563e9;
   font-size: 11px;
   font-weight: 600;
 }
 
 .billing-view-btn:hover {
-  background: #ccfbf1;
+  background: #e9eeff;
 }
 
 .billing-empty-row {
@@ -720,23 +722,26 @@
   color: #8b95a7 !important;
 }
 
-/* Bill Details Modal */
+/* Bill Details Modal:
+   z-index: 3000 ensures the modal always opens ABOVE the fixed mobile navbar (z-index: 1200) */
 .billing-modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: 3000 !important;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: max(20px, env(safe-area-inset-top, 20px)) 14px
+    max(24px, env(safe-area-inset-bottom, 24px));
   background: rgba(15, 23, 42, 0.55);
   backdrop-filter: blur(3px);
+  overflow-y: auto;
 }
 
 .billing-details-modal {
   width: 100%;
   max-width: 720px;
-  max-height: 88vh;
+  max-height: calc(100dvh - 40px);
   overflow-y: auto;
   padding: 25px;
   border-radius: 15px;
@@ -777,6 +782,8 @@
   border-radius: 8px;
   background: #fff;
   color: #475569;
+  cursor: pointer;
+  flex-shrink: 0;
 }
 
 .bill-status-badge,
@@ -959,6 +966,7 @@
   color: #fff;
   font-size: 11px;
   font-weight: 600;
+  cursor: pointer;
 }
 
 .pay-full-btn:hover:not(:disabled) {
@@ -968,10 +976,12 @@
 .bill-payment-input-row {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .bill-payment-input-row input {
   flex: 1;
+  min-width: 140px;
   height: 38px;
   padding: 0 11px;
   border: 1px solid #cbd5e1;
@@ -1038,6 +1048,7 @@
   color: #dc2626;
   font-size: 12px;
   font-weight: 600;
+  cursor: pointer;
 }
 
 .cancel-bill-trigger-btn:hover {

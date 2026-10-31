@@ -75,6 +75,25 @@ main {
   padding-bottom: calc(64px + env(safe-area-inset-bottom, 20px));
 }
 
+/* Universal Modal Backdrop Z-Index Fix:
+   Ensures EVERY modal across Billing, Payments, Products, Categories, and Customers
+   always opens ON TOP of the fixed mobile Navbar (z-index: 1200) and never gets clipped at the top */
+.billing-modal-backdrop,
+.payment-modal-overlay,
+.payment-modal-backdrop,
+.refund-modal-overlay,
+.refund-modal-backdrop,
+.product-modal-backdrop,
+.product-details-overlay,
+.category-modal-backdrop,
+.customer-modal-backdrop,
+.logout-modal-backdrop,
+.sidebar-logout-backdrop {
+  z-index: 3000 !important;
+  padding: max(18px, env(safe-area-inset-top, 18px)) 14px
+    max(24px, env(safe-area-inset-bottom, 24px)) !important;
+}
+
 /* Ensure all table wrappers scroll smoothly on small screens */
 .table-wrapper,
 .products-table-scroll,
@@ -257,7 +276,7 @@ main {
     width: 100% !important;
     max-width: calc(100vw - 24px) !important;
     padding: 18px !important;
-    max-height: calc(100dvh - 48px) !important;
+    max-height: calc(100dvh - 44px) !important;
     overflow-y: auto;
   }
 
