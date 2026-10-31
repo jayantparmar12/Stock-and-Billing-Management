@@ -1,251 +1,83 @@
-.top-navbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 62px;
-  padding: 0 24px;
-  background: #ffffff;
-  border-bottom: 1px solid #e2e8f0;
-  gap: 12px;
-  flex-wrap: nowrap;
-  position: sticky !important;
-  top: 0 !important;
-  width: 100% !important;
-  z-index: 1200;
-  flex-shrink: 0;
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
-.top-navbar-left {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 10px;
-  min-width: 0;
-  flex: 1;
-}
-
-.mobile-menu-trigger {
-  display: none;
-  width: 38px;
-  height: 38px;
-  border-radius: 9px;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-  color: #1e293b;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.mobile-menu-trigger:hover {
-  background: #edf2ff;
-  color: #3563e9;
-  border-color: #cbd5e1;
-}
-
-.shop-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 12px;
-  border-radius: 8px;
-  background: #edf2ff;
-  color: #3563e9;
-  font-size: 13px;
-  font-weight: 700;
-  max-width: 240px;
-  min-width: 0;
-}
-
-.shop-badge span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.shop-code-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 11px;
-  border-radius: 7px;
-  border: 1px dashed #cbd5e1;
-  background: #f8fafc;
-  color: #334155;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.shop-code-btn:hover {
-  border-color: #3563e9;
-  background: #f1f5f9;
-}
-
-.top-navbar-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
-}
-
-.navbar-user-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  border-radius: 8px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  font-size: 12px;
-  color: #334155;
-}
-
-.navbar-user-name {
-  max-width: 140px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.role-pill {
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.role-pill.admin {
-  background: #dcfce7;
-  color: #15803d;
-}
-
-.role-pill.staff {
-  background: #fef3c7;
-  color: #b45309;
-}
-
-.navbar-logout-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 14px;
-  border-radius: 8px;
-  border: 1px solid #fecaca;
-  background: #fef2f2;
-  color: #dc2626;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.navbar-logout-btn:hover {
-  background: #dc2626;
-  color: #ffffff;
-  border-color: #dc2626;
-}
-
-/* Logout Confirmation Dialog Modal */
-.logout-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 3000 !important;
-  background: rgba(15, 23, 42, 0.55);
-  backdrop-filter: blur(2px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-
-.logout-modal-card {
+html,
+body {
+  margin: 0;
+  padding: 0;
   width: 100%;
-  max-width: 400px;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 16px;
-  padding: 24px;
-  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.2);
-}
-
-.logout-modal-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 14px;
-}
-
-.logout-modal-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: #fef2f2;
-  color: #dc2626;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.logout-modal-close {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  background: #ffffff;
-  color: #64748b;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-.logout-modal-card h3 {
-  margin: 0 0 8px;
-  font-size: 18px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: clip;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    sans-serif;
+  background: #f8fafc;
   color: #1e293b;
 }
 
-.logout-modal-card p {
-  margin: 0 0 22px;
-  font-size: 13px;
-  color: #64748b;
-  line-height: 1.5;
+/* Root must be block/100% width so full-page screens like Login/Register (.auth-page) span 100% width and stay centered */
+#root {
+  display: block;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
 }
 
-.logout-modal-actions {
+/* Auth Page (Login / Register) Full-Width Centering & Mobile Safe Area */
+.auth-page {
+  width: 100% !important;
+  flex: 1 1 100% !important;
+  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
-  justify-content: flex-end;
-  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  padding: max(20px, env(safe-area-inset-top, 20px)) 16px
+    max(28px, env(safe-area-inset-bottom, 28px));
 }
 
-.logout-cancel-btn {
-  padding: 9px 16px;
-  border-radius: 8px;
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
-  color: #334155;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
+/* MainLayout Wrapper Responsiveness */
+.app-layout,
+.main-layout {
+  display: flex;
+  min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
+  overflow-x: clip;
 }
 
-.logout-confirm-btn {
-  padding: 9px 18px;
-  border-radius: 8px;
-  border: none;
-  background: #dc2626;
-  color: #ffffff;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
+.main-content,
+.content-area,
+.layout-right,
+main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
 }
 
-/* Universal Modal Z-Index Rule (inside Navbar.css so it works everywhere automatically):
-   Every modal across the app opens ABOVE the fixed navbar (z-index: 3000) */
+/* Page wrapper inside main layout */
+.dashboard,
+.products-page,
+.categories-page,
+.customers-page,
+.billing-page,
+.payments-page,
+.refunds-page,
+.stock-history-page {
+  width: 100%;
+  padding-top: 16px;
+  padding-bottom: calc(64px + env(safe-area-inset-bottom, 20px));
+}
+
+/* Universal Modal Backdrop Z-Index Fix:
+   Ensures EVERY modal across Billing, Payments, Products, Categories, and Customers
+   always opens ON TOP of the fixed mobile Navbar (z-index: 1200) and never gets clipped at the top */
 .billing-modal-backdrop,
 .payment-modal-overlay,
 .payment-modal-backdrop,
@@ -262,42 +94,67 @@
     max(24px, env(safe-area-inset-bottom, 24px)) !important;
 }
 
-/* Mobile & Tablet (<= 1024px):
-   1. Navbar locked at top (60px height) with touch-action: none so it never scrolls or disappears
-   2. Every module container gets padding-top: 76px !important right here in Navbar.css so NO module header ever goes behind the navbar! */
+/* Ensure all table wrappers scroll smoothly on small screens */
+.table-wrapper,
+.products-table-scroll,
+.products-table-wrap,
+.categories-table-scroll,
+.categories-table-wrap,
+.customers-table-wrap,
+.billing-table-wrapper,
+.billing-table-wrap,
+.payments-table-wrapper,
+.refunds-table-wrapper,
+.stock-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Laptop & Tablet Breakpoint (<= 1100px) */
+@media (max-width: 1100px) {
+  .stats-grid,
+  .payments-stats,
+  .refunds-stats,
+  .product-summary-grid,
+  .products-stats,
+  .category-summary-grid,
+  .categories-stats,
+  .billing-stats,
+  .stock-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 14px !important;
+  }
+
+  .dashboard-charts,
+  .dashboard-bottom,
+  .billing-layout,
+  .billing-workspace,
+  .billing-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+/* Mobile & Tablet Layout Fix (<= 1024px):
+   - Navbar is fixed (60px height) at top: 0 so it never scrolls away
+   - Every page gets 76px top padding (60px navbar + 16px gap) so headings are never covered by the fixed navbar */
 @media (max-width: 1024px) {
-  .mobile-menu-trigger {
-    display: inline-flex;
-  }
-
-  .top-navbar {
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    width: 100% !important;
-    height: 60px !important;
-    padding: 0 14px !important;
-    z-index: 1200 !important;
-    touch-action: none;
-    user-select: none;
-    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
-  }
-
   .top-navbar-right {
     display: none !important;
   }
 
-  .top-navbar-left {
-    justify-content: flex-start;
-    gap: 10px;
+  .app-layout,
+  .main-layout,
+  .main-content,
+  .content-area,
+  main,
+  .page-content {
+    height: auto !important;
+    min-height: 100dvh !important;
+    overflow-y: visible !important;
+    padding-top: 0 !important;
   }
 
-  .shop-code-btn {
-    margin-left: auto;
-  }
-
-  /* Push all module pages down by 76px (60px fixed navbar + 16px gap) so NO module heading ever goes behind the navbar */
   .dashboard,
   .products-page,
   .categories-page,
@@ -307,23 +164,124 @@
   .refunds-page,
   .stock-history-page {
     padding-top: 76px !important;
-    padding-bottom: calc(90px + env(safe-area-inset-bottom, 24px)) !important;
+    padding-bottom: calc(92px + env(safe-area-inset-bottom, 24px)) !important;
   }
 }
 
-@media (max-width: 480px) {
-  .top-navbar-left {
+/* Tablet & Large Phone Breakpoint (<= 768px) */
+@media (max-width: 768px) {
+  .dashboard,
+  .products-page,
+  .categories-page,
+  .customers-page,
+  .billing-page,
+  .payments-page,
+  .refunds-page,
+  .stock-history-page {
+    padding-top: 76px !important;
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+    padding-bottom: calc(92px + env(safe-area-inset-bottom, 24px)) !important;
+  }
+
+  /* Page Headings Stack Cleanly */
+  .dashboard-heading,
+  .products-heading,
+  .categories-heading,
+  .customers-heading,
+  .billing-heading,
+  .payments-heading,
+  .refunds-heading,
+  .stock-heading {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+    margin-top: 0 !important;
+  }
+
+  .dashboard-heading-controls,
+  .products-heading-actions,
+  .categories-heading-actions,
+  .customers-heading-actions,
+  .billing-heading-actions,
+  .billing-tabs,
+  .payments-heading-actions,
+  .refunds-heading-actions {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
     gap: 8px;
   }
 
-  .shop-badge {
-    max-width: 150px;
-    padding: 6px 10px;
-    font-size: 12px;
+  /* Filter & Search Toolbars Stack 100% Width */
+  .payments-filters,
+  .refunds-filters,
+  .products-toolbar,
+  .categories-toolbar,
+  .customers-toolbar,
+  .billing-filters-bar,
+  .billing-toolbar,
+  .stock-toolbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
   }
 
-  .shop-code-btn {
-    font-size: 10px;
-    padding: 5px 8px;
+  .payments-search,
+  .refunds-search,
+  .customers-search,
+  .product-search,
+  .products-search,
+  .category-search,
+  .categories-search,
+  .billing-search-form,
+  .billing-search-box,
+  .billing-customer-filter,
+  .billing-date-filter,
+  .payments-filters select,
+  .refunds-filters select {
+    width: 100% !important;
+    max-width: 100% !important;
   }
 }
+
+/* Mobile Phone Breakpoint (<= 540px) */
+@media (max-width: 540px) {
+  .stats-grid,
+  .payments-stats,
+  .refunds-stats,
+  .product-summary-grid,
+  .products-stats,
+  .category-summary-grid,
+  .categories-stats,
+  .billing-stats,
+  .stock-stats,
+  .bill-overview-grid,
+  .bill-histories-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  /* Modals fit mobile screens safely between top status bar and bottom options bar */
+  .payment-modal,
+  .refund-modal,
+  .customer-modal,
+  .product-modal,
+  .product-details-modal,
+  .category-modal,
+  .billing-details-modal,
+  .bill-modal,
+  .logout-modal-card,
+  .sidebar-logout-modal {
+    width: 100% !important;
+    max-width: calc(100vw - 24px) !important;
+    padding: 18px !important;
+    max-height: calc(100dvh - 44px) !important;
+    overflow-y: auto;
+  }
+
+  h1 {
+    font-size: 21px !important;
+  }
+}
+
