@@ -6,6 +6,7 @@ import com.jayant.backend.repository.*;
 import com.jayant.backend.security.CurrentUserService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -28,6 +29,7 @@ public class BillService {
     private final StockMovementService stockMovementService;
     private final CurrentUserService currentUserService;
 
+    @CacheEvict(value = {"products", "dashboard"}, key = "@currentUserService.getCurrentShopId()")
     @Transactional
     public ApiResponse<BillResponse> createBill(BillRequest request) {
         Shop currentShop = currentUserService.getCurrentShop();
@@ -165,6 +167,7 @@ public class BillService {
         return new ApiResponse<>(true, "List of bills according to customer name : " + name, billResponses);
     }
 
+    @CacheEvict(value = {"products", "dashboard"}, key = "@currentUserService.getCurrentShopId()")
     @Transactional
     public ApiResponse<Void> cancelBill(Integer id) {
         Integer shopId = currentUserService.getCurrentShopId();

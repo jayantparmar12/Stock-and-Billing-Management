@@ -8,6 +8,7 @@ import com.jayant.backend.repository.CustomerRepo;
 import com.jayant.backend.repository.ProductRepo;
 import com.jayant.backend.security.CurrentUserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -21,6 +22,7 @@ public class DashboardService {
     private final BillRepo billRepo;
     private final CurrentUserService currentUserService;
 
+    @Cacheable(value = "dashboard", key = "@currentUserService.getCurrentShopId()")
     public ApiResponse<DashboardResponse> getDashboard() {
         Integer shopId = currentUserService.getCurrentShopId();
 
