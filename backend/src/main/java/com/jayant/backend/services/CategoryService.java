@@ -10,6 +10,8 @@ import com.jayant.backend.repository.CategoryRepo;
 import com.jayant.backend.repository.ProductRepo;
 import com.jayant.backend.security.CurrentUserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -25,6 +27,7 @@ public class CategoryService {
     private final ProductRepo productRepo;
     private final CurrentUserService currentUserService;
 
+    @Cacheable(value = "categories", key = "@currentUserService.getCurrentShopId()")
     public ApiResponse<List<CategoryResponse>> getAllCategory() {
         Integer shopId = currentUserService.getCurrentShopId();
         List<Category> categories = categoryRepo.findByShopId(shopId);
@@ -47,6 +50,7 @@ public class CategoryService {
         return new ApiResponse<>(true, "Category by id : " + id, mapToResponse(category, shopId));
     }
 
+    @CacheEvict(value = "categories", key = "@currentUserService.getCurrentShopId()")
     public ApiResponse<CategoryResponse> addCategory(Category category) {
         Shop currentShop = currentUserService.getCurrentShop();
         category.setShop(currentShop);
@@ -54,6 +58,7 @@ public class CategoryService {
         return new ApiResponse<>(true, "Category added successfully", mapToResponse(saved, currentShop.getId()));
     }
 
+    @CacheEvict(value = {"categories", "products"}, key = "@currentUserService.getCurrentShopId()")
     public ApiResponse<CategoryResponse> editCategory(Category category) {
         Shop currentShop = currentUserService.getCurrentShop();
         Category existing = categoryRepo.findByIdAndShopId(category.getId(), currentShop.getId())
@@ -68,6 +73,7 @@ public class CategoryService {
         return new ApiResponse<>(true, "Category edited successfully", mapToResponse(saved, currentShop.getId()));
     }
 
+    @CacheEvict(value = "categories", key = "@currentUserService.getCurrentShopId()")
     public ApiResponse<Void> deleteCategory(Integer id) {
         Integer shopId = currentUserService.getCurrentShopId();
         Category existing = categoryRepo.findByIdAndShopId(id, shopId)

@@ -30,7 +30,7 @@ public class ProductService {
     private final CategoryRepo categoryRepo;
     private final CurrentUserService currentUserService;
 
-    @CacheEvict(value = {"products", "dashboard"}, key = "@currentUserService.getCurrentShopId()")
+    @CacheEvict(value = {"products", "categories", "dashboard"}, key = "@currentUserService.getCurrentShopId()")
     public ApiResponse<ProductResponse> addProduct(ProductRequest productRequest) {
         Shop currentShop = currentUserService.getCurrentShop();
 
@@ -73,7 +73,7 @@ public class ProductService {
         return new ApiResponse<>(true, "Product by id", productToProductResponse(product));
     }
 
-    @CacheEvict(value = {"products", "dashboard"}, key = "@currentUserService.getCurrentShopId()")
+    @CacheEvict(value = {"products", "categories", "dashboard"}, key = "@currentUserService.getCurrentShopId()")
     public ApiResponse<Void> deleteProduct(Integer id) {
         Integer shopId = currentUserService.getCurrentShopId();
         Product product = productRepo.findByIdAndShopId(id, shopId)
@@ -86,7 +86,7 @@ public class ProductService {
         return new ApiResponse<>(true, "Product deleted successfully", null);
     }
 
-    @CacheEvict(value = {"products", "dashboard"}, key = "@currentUserService.getCurrentShopId()")
+    @CacheEvict(value = {"products", "categories", "dashboard"}, key = "@currentUserService.getCurrentShopId()")
     public ApiResponse<ProductResponse> editProduct(ProductRequest productRequest) {
         Shop currentShop = currentUserService.getCurrentShop();
 
@@ -115,7 +115,7 @@ public class ProductService {
         return new ApiResponse<>(true, "Product edited successfully", productToProductResponse(product));
     }
 
-    @CacheEvict(value = {"products", "dashboard"}, key = "@currentUserService.getCurrentShopId()")
+    @CacheEvict(value = {"products", "categories", "dashboard"}, key = "@currentUserService.getCurrentShopId()")
     @Transactional
     public ApiResponse<Product> increaseProduct(Integer id, Integer quantity) {
         if (quantity <= 0) {
@@ -139,7 +139,7 @@ public class ProductService {
         return new ApiResponse<>(true, "Stock increased successfully", product);
     }
 
-    @CacheEvict(value = {"products", "dashboard"}, key = "@currentUserService.getCurrentShopId()")
+    @CacheEvict(value = {"products", "categories", "dashboard"}, key = "@currentUserService.getCurrentShopId()")
     @Transactional
     public ApiResponse<Product> decreaseProduct(Integer id, Integer quantity) {
         if (quantity <= 0) {
