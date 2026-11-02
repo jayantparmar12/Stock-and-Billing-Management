@@ -9,6 +9,13 @@ import java.time.LocalDateTime;
 
 @Entity
 @Data
+@Table(
+        name = "bill",
+        indexes = {
+                @Index(name = "idx_bill_shop_id", columnList = "shop_id"),
+                @Index(name = "idx_bill_shop_date", columnList = "shop_id, billDate")
+        }
+)
 public class Bill {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
