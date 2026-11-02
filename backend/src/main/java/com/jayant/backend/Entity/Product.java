@@ -35,4 +35,7 @@ public class Product {
 
     @Column(nullable = false)
     private String unit = "pcs";
+
+    @Version
+    private Long version;
 }
